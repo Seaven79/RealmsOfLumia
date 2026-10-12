@@ -1,0 +1,36 @@
+{
+  "name": "RealmsOfEternia",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Eternia": {
+        "$className": "Folder",
+        "Shared": {
+          "$path": "src/shared"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "EterniaServer": {
+        "$className": "Folder",
+        "Services": {
+          "$path": "src/server"
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "EterniaClient": {
+          "$className": "Folder",
+          "Controllers": {
+            "$path": "src/client"
+          }
+        }
+      }
+    }
+  }
+}
