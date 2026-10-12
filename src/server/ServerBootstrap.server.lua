@@ -1,21 +1,12 @@
 local ServiceRegistry = require(script.Parent:WaitForChild("ServiceRegistry"))
+local PlayerSessionService = require(script.Parent:WaitForChild("PlayerSessionService"))
 
 print("[Eternia] MMO server bootstrap starting...")
 
--- Temporary test service.
--- This verifies our MMO Core without changing existing gameplay.
-local TestService = {}
+-- Register our MMO services.
+ServiceRegistry.Register("PlayerSessionService", PlayerSessionService)
 
-function TestService:Init()
-    print("[Eternia] TestService initialized")
-end
-
-function TestService:Start()
-    print("[Eternia] TestService running")
-end
-
-ServiceRegistry.Register("TestService", TestService)
-
+-- Initialize every service before starting any service.
 local initialized = ServiceRegistry.InitAll()
 
 if not initialized then
@@ -23,6 +14,7 @@ if not initialized then
     return
 end
 
+-- Start services only after initialization succeeds.
 local started = ServiceRegistry.StartAll()
 
 if started then
