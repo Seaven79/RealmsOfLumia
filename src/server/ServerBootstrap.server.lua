@@ -2,6 +2,8 @@ local ServiceRegistry = require(script.Parent:WaitForChild("ServiceRegistry"))
 local PlayerSessionService = require(script.Parent:WaitForChild("PlayerSessionService"))
 local PlayerDataService = require(script.Parent:WaitForChild("PlayerDataService"))
 local ProgressionService = require(script.Parent:WaitForChild("ProgressionService"))
+local MonsterService = require(script.Parent:WaitForChild("MonsterService"))
+local SpawnManager = require(script.Parent:WaitForChild("SpawnManager"))
 
 print("[Eternia] MMO server bootstrap starting...")
 
@@ -9,6 +11,8 @@ print("[Eternia] MMO server bootstrap starting...")
 ServiceRegistry.Register("PlayerSessionService", PlayerSessionService)
 ServiceRegistry.Register("PlayerDataService", PlayerDataService, {"PlayerSessionService"})
 ServiceRegistry.Register("ProgressionService", ProgressionService, {"PlayerDataService"})
+ServiceRegistry.Register("MonsterService", MonsterService, {"ProgressionService"})
+ServiceRegistry.Register("SpawnManager", SpawnManager, {"MonsterService"})
 
 -- Initialize every service before starting any service.
 local initialized = ServiceRegistry.InitAll()
