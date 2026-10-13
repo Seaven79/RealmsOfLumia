@@ -21,7 +21,7 @@ local playerDataService = nil
 local started = false
 
 local MAX_QUANTITY = 999999
-local MAX_RECORDS = 200
+local MAX_RECORDS = 8
 local MAX_UNIQUE_PER_CALL = 100
 
 local function validQuantity(value)
