@@ -28,11 +28,14 @@ PlayerProfileTemplate.Default = {
     Inventory = {
         Items = {},
         Equipment = {},
+        Bags = { [1] = "StarterBackpack" },
     },
 
     Settings = {
         ShowMinimap = true,
         ShowQuestTracker = true,
+        BagViewMode = "selected",
+        SelectedBagId = 1,
     },
 }
 

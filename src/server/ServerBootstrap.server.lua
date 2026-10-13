@@ -4,6 +4,7 @@ local PlayerSessionService = require(script.Parent:WaitForChild("PlayerSessionSe
 local PlayerPersistenceService = require(script.Parent:WaitForChild("PlayerPersistenceService"))
 local PlayerDataService = require(script.Parent:WaitForChild("PlayerDataService"))
 local InventoryService = require(script.Parent:WaitForChild("InventoryService"))
+local EquipmentService = require(script.Parent:WaitForChild("EquipmentService"))
 local ProgressionService = require(script.Parent:WaitForChild("ProgressionService"))
 local MonsterService = require(script.Parent:WaitForChild("MonsterService"))
 local SpawnManager = require(script.Parent:WaitForChild("SpawnManager"))
@@ -30,6 +31,13 @@ ServiceRegistry.Register(
     "InventoryService",
     InventoryService,
     {"PlayerDataService"}
+)
+
+EquipmentService:Configure(PlayerDataService, InventoryService)
+ServiceRegistry.Register(
+    "EquipmentService",
+    EquipmentService,
+    {"InventoryService", "PlayerDataService"}
 )
 
 ServiceRegistry.Register(

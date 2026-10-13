@@ -1,5 +1,5 @@
 -- Realms of Eternia - Step 13.1
--- Character sheet: press C to open. Read-only until EquipmentService (Step 13.2).
+-- Character sheet: C opens; drag equipped icons into an empty bag slot.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -11,6 +11,8 @@ local Theme = require(uiModules:WaitForChild("CharacterTheme"))
 local EquipmentSlots = require(uiModules:WaitForChild("EquipmentSlots"))
 local StatDisplay = require(uiModules:WaitForChild("StatDisplay"))
 local ItemTooltip = require(uiModules:WaitForChild("ItemTooltip"))
+local EquipmentClient = require(uiModules:WaitForChild("EquipmentClient"))
+local DragDrop = require(uiModules:WaitForChild("EquipmentDragDrop"))
 local eternia = ReplicatedStorage:WaitForChild("Eternia")
 local network = eternia:WaitForChild("CharacterNetwork")
 local request = network:WaitForChild("GetCharacter")
@@ -162,7 +164,23 @@ equipmentArea.ZIndex = 3
 equipmentArea.Parent = window
 
 local tooltip = ItemTooltip.new(gui)
+-- Keep this window's approved dimensions and equipment slots unchanged.
+local refresh -- set below; action callbacks run only after initialization.
 local equipment = EquipmentSlots.new(equipmentArea, tooltip)
+DragDrop.Started:Connect(function()
+    tooltip:Hide()
+end)
+DragDrop.Result:Connect(function(ok, message, sourceKind)
+    if sourceKind ~= "Equipment" or not window.Visible then return end
+    if not ok then
+        warn("[Eternia] Drop rejected: " .. tostring(message))
+        characterDetails.Text = tostring(message)
+        task.delay(2.5, function()
+            if window.Visible then task.spawn(refresh) end
+        end)
+    end
+    -- EquipmentClient emits a completion message and refreshed server snapshots.
+end)
 local statsPanel = StatDisplay.new(window)
 
 local function render(snapshot)
@@ -187,21 +205,24 @@ local function render(snapshot)
     local characterClass = snapshot.Class
     classText.Text = type(characterClass) == "string" and characterClass ~= ""
         and characterClass or "Unassigned"
-    equipment:Update(snapshot.Equipment)
+    equipment:Update(EquipmentClient.GetEquipmentView())
     statsPanel:Update(snapshot.Stats, snapshot.Gold)
 end
 
 local isRefreshing = false
-local function refresh()
+refresh = function()
     if isRefreshing or not window.Visible then return end
     isRefreshing = true
+    local startedRevision = EquipmentClient.GetRevision()
     local ok, result = pcall(function()
         return request:InvokeServer()
     end)
     isRefreshing = false
     if not window.Visible then return end
     if ok and type(result) == "table" and result.Ready then
-        render(result)
+        if EquipmentClient.UpdateEquipmentSnapshot(result.Equipment or {}, startedRevision) then
+            render(result)
+        end
     elseif not ok then
         characterDetails.Text = "Connection issue - retrying..."
     elseif not result or not result.Retry then
@@ -209,9 +230,24 @@ local function refresh()
     end
 end
 
+-- Local predictions and confirmed server responses update equipment instantly.
+-- Stats and XP still refresh from the existing read-only CharacterBridge.
+EquipmentClient.EquipmentChanged:Connect(function()
+    if window.Visible then
+        equipment:Update(EquipmentClient.GetEquipmentView())
+    end
+end)
+
+EquipmentClient.NeedsRefresh:Connect(function()
+    task.delay(0.3, function()
+        if window.Visible then task.spawn(refresh) end
+    end)
+end)
+
 local function toggle()
     window.Visible = not window.Visible
     tooltip:Hide()
+    DragDrop.NotifyWindowsChanged()
     if window.Visible then
         task.spawn(refresh)
     end

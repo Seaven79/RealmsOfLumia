@@ -1,76 +1,80 @@
--- REALMS OF ETERNIA
--- INVENTORY BRIDGE
--- Read-only inventory snapshots and visual item previews.
-
+-- REALMS OF ETERNIA - BAG NETWORK
+-- Read snapshots; move or swap saved positions; remember viewing preferences.
+-- All slot changes are checked by InventoryService on the server.
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-
 local services = script.Parent
 local InventoryService = require(services:WaitForChild("InventoryService"))
-local ItemDefinitions = require(
-    ReplicatedStorage:WaitForChild("Eternia")
-        :WaitForChild("Shared"):WaitForChild("ItemDefinitions")
-)
-
-local eternia = ReplicatedStorage:WaitForChild("Eternia")
-
-local network = eternia:FindFirstChild("InventoryNetwork")
+local PlayerDataService = require(services:WaitForChild("PlayerDataService"))
+local BagSnapshot = require(services:WaitForChild("BagSnapshot"))
+local network = ReplicatedStorage:WaitForChild("Eternia"):FindFirstChild("InventoryNetwork")
 if not network then
     network = Instance.new("Folder")
     network.Name = "InventoryNetwork"
-    network.Parent = eternia
+    network.Parent = ReplicatedStorage.Eternia
 end
-
-local request = network:FindFirstChild("GetInventory")
-if not request then
-    request = Instance.new("RemoteFunction")
-    request.Name = "GetInventory"
-    request.Parent = network
+local function remote(name)
+    local existing = network:FindFirstChild(name)
+    if not existing then
+        existing = Instance.new("RemoteFunction")
+        existing.Name = name
+        existing.Parent = network
+    end
+    assert(existing:IsA("RemoteFunction"), "Bad InventoryNetwork remote: " .. name)
+    return existing
 end
-
-local lastRequest = {}
+local request = remote("GetInventory")
+local moveRequest = remote("MoveBagItem")
+local preferenceRequest = remote("SetBagView")
+local lastRead, lastMove, lastPreference = {}, {}, {}
+local function validPlayer(player)
+    return player and player:IsA("Player") and player.Parent == Players
+end
+local function throttle(last, player, interval)
+    local now = os.clock()
+    if last[player] and now - last[player] < interval then return false end
+    last[player] = now
+    return true
+end
 
 request.OnServerInvoke = function(player)
-    if not player or player.Parent ~= Players then
-        return {}
+    if not validPlayer(player) then return { Items = {}, Bags = {} } end
+    if not throttle(lastRead, player, 0.15) then return nil end
+    return BagSnapshot.Build(player) or { Items = {}, Bags = {} }
+end
+
+moveRequest.OnServerInvoke = function(player, args)
+    if not validPlayer(player) then return { Ok = false, Error = "Invalid player" } end
+    if not throttle(lastMove, player, 0.08) then
+        return { Ok = false, Error = "Please wait a moment" }
     end
-
-    local now = os.clock()
-    if lastRequest[player] and now - lastRequest[player] < 0.15 then
-        return nil
+    if type(args) ~= "table" then return { Ok = false, Error = "Invalid bag move" } end
+    local ok, allowed, info = pcall(function()
+        return InventoryService:MoveBagItem(player,
+            args.FromBag, args.FromSlot, args.ToBag, args.ToSlot)
+    end)
+    if not ok then
+        warn("[Eternia] Bag move error: " .. tostring(allowed))
+        return { Ok = false, Error = "Inventory unavailable" }
     end
-    lastRequest[player] = now
+    if not allowed then return { Ok = false, Error = tostring(info) } end
+    return { Ok = true, Bag = BagSnapshot.Build(player) }
+end
 
-    local items = InventoryService:GetItems(player)
-    if not items then
-        return {}
-    end
-
-    local snapshot = {}
-    for index, record in ipairs(items) do
-        if index > 8 then break end
-
-        local definition = ItemDefinitions.Get(record.ItemId)
-        if definition then
-            table.insert(snapshot, {
-                ItemId = record.ItemId,
-                DisplayName = definition.DisplayName,
-                Quantity = record.Quantity,
-                Rarity = definition.Rarity,
-                Type = definition.Type,
-                Damage = definition.Damage,
-                RequiredLevel = definition.RequiredLevel,
-                IconId = definition.IconId,
-                ModelId = definition.ModelId,
-            })
-        end
-    end
-
-    return snapshot
+preferenceRequest.OnServerInvoke = function(player, mode, bagId)
+    if not validPlayer(player) then return false end
+    if not throttle(lastPreference, player, 0.08) then return false end
+    if mode ~= "selected" and mode ~= "all" then return false end
+    if type(bagId) ~= "number" or bagId % 1 ~= 0
+        or bagId < 1 or bagId > 5 then return false end
+    local profile = PlayerDataService:GetProfile(player)
+    if not profile or type(profile.Settings) ~= "table" then return false end
+    profile.Settings.BagViewMode = mode
+    profile.Settings.SelectedBagId = bagId
+    return true
 end
 
 Players.PlayerRemoving:Connect(function(player)
-    lastRequest[player] = nil
+    lastRead[player], lastMove[player], lastPreference[player] = nil, nil, nil
 end)
-
-print("[Eternia] InventoryBridge ready")
+print("[Eternia] Bag network ready - five bag positions, starter capacity eight")
