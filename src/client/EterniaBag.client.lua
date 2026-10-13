@@ -5,12 +5,14 @@
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local eternia = ReplicatedStorage:WaitForChild("Eternia")
 local ItemIcons = require(
     eternia:WaitForChild("Shared"):WaitForChild("ItemIcons")
+)
+local ItemTooltip = require(
+    script.Parent:WaitForChild("CharacterUI"):WaitForChild("ItemTooltip")
 )
 local network = eternia:WaitForChild("InventoryNetwork")
 local request = network:WaitForChild("GetInventory")
@@ -105,18 +107,10 @@ footer.TextSize = 11
 footer.Font = Enum.Font.Gotham
 footer.Parent = window
 
-local tooltip = Instance.new("TextLabel")
-tooltip.Size = UDim2.fromOffset(190, 62)
-tooltip.BackgroundColor3 = Color3.fromRGB(17, 16, 17)
-tooltip.BorderSizePixel = 0
-tooltip.TextColor3 = Color3.fromRGB(238, 217, 170)
-tooltip.TextSize = 12
-tooltip.TextWrapped = true
-tooltip.Font = Enum.Font.Gotham
-tooltip.Visible = false
-tooltip.ZIndex = 50
-tooltip.Parent = gui
-Instance.new("UICorner", tooltip).CornerRadius = UDim.new(0, 5)
+-- Share the same polished mouseover UI as the character sheet.
+local tooltip = ItemTooltip.new(gui)
+local slotItems = {}
+local hoveredIndex = nil
 
 local function clearSlot(slot)
     for _, child in ipairs(slot:GetChildren()) do
@@ -163,11 +157,11 @@ local rarityColors = {
 local function render(items)
     if not window.Visible then return end
     renderVersion += 1
-    tooltip.Visible = false
 
     for index, slot in ipairs(slots) do
         clearSlot(slot)
         local item = items[index]
+        slotItems[index] = item
         local border = slot:FindFirstChildOfClass("UIStroke")
 
         if item then
@@ -193,44 +187,35 @@ local function render(items)
                 quantity.Parent = slot
             end
 
-            slot:SetAttribute("Tooltip",
-                tostring(item.DisplayName or item.ItemId)
-                .. "\n" .. tostring(item.Rarity or "Common")
-                .. (item.Damage and ("\nDamage: " .. item.Damage) or "")
-            )
         else
             border.Thickness = 1
             border.Color = Color3.fromRGB(79, 69, 54)
-            slot:SetAttribute("Tooltip", nil)
         end
     end
 
     footer.Text = tostring(#items) .. " / 8 slots"
+
+    if hoveredIndex and slotItems[hoveredIndex] then
+        tooltip:Show(slotItems[hoveredIndex])
+    else
+        tooltip:Hide()
+    end
 end
 
-for _, slot in ipairs(slots) do
+for index, slot in ipairs(slots) do
     slot.MouseEnter:Connect(function()
-        local value = slot:GetAttribute("Tooltip")
-        if value then
-            tooltip.Text = value
-            tooltip.Visible = true
+        hoveredIndex = index
+        if slotItems[index] then
+            tooltip:Show(slotItems[index])
         end
     end)
     slot.MouseLeave:Connect(function()
-        tooltip.Visible = false
+        if hoveredIndex == index then
+            hoveredIndex = nil
+        end
+        tooltip:Hide()
     end)
 end
-
-RunService.RenderStepped:Connect(function()
-    if tooltip.Visible then
-        local mouse = UserInputService:GetMouseLocation()
-        local screen = gui.AbsoluteSize
-        tooltip.Position = UDim2.fromOffset(
-            math.clamp(mouse.X + 14, 0, math.max(0, screen.X - 195)),
-            math.clamp(mouse.Y + 14, 0, math.max(0, screen.Y - 67))
-        )
-    end
-end)
 
 -- Drag window by its title bar.
 local dragging = false
@@ -277,7 +262,8 @@ end
 
 local function toggle()
     window.Visible = not window.Visible
-    tooltip.Visible = false
+    tooltip:Hide()
+    hoveredIndex = nil
     if window.Visible then
         task.spawn(refresh)
     end
