@@ -38,7 +38,10 @@
                                                              "$className":  "Folder",
                                                              "Creatures":  {
                                                                                "$path":  "src/assets/creatures"
-                                                                           }
+                                                                           },
+                                                             "Items":  {
+                                                                           "$path":  "src/assets/items"
+                                                                       }
                                                          }
                                    }
              }

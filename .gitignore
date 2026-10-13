@@ -8,3 +8,4 @@ sourcemap.json
 
 # Track official Realms of Eternia creature models
 !/src/assets/creatures/*.rbxm
+!/src/assets/items/*.rbxm
