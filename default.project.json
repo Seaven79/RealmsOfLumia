@@ -1,48 +1,54 @@
 {
-    "name":  "RealmsOfEternia",
-    "tree":  {
-                 "$className":  "DataModel",
-                 "ReplicatedStorage":  {
-                                           "$className":  "ReplicatedStorage",
-                                           "Eternia":  {
-                                                           "$className":  "Folder",
-                                                           "Shared":  {
-                                                                          "$path":  "src/shared"
-                                                                      }
-                                                       }
-                                       },
-                 "ServerScriptService":  {
-                                             "$className":  "ServerScriptService",
-                                             "EterniaServer":  {
-                                                                   "$className":  "Folder",
-                                                                   "Services":  {
-                                                                                    "$path":  "src/server"
-                                                                                }
-                                                               }
-                                         },
-                 "StarterPlayer":  {
-                                       "$className":  "StarterPlayer",
-                                       "StarterPlayerScripts":  {
-                                                                    "$className":  "StarterPlayerScripts",
-                                                                    "EterniaClient":  {
-                                                                                          "$className":  "Folder",
-                                                                                          "Controllers":  {
-                                                                                                              "$path":  "src/client"
-                                                                                                          }
-                                                                                      }
-                                                                }
-                                   },
-                 "ServerStorage":  {
-                                       "$className":  "ServerStorage",
-                                       "EterniaAssets":  {
-                                                             "$className":  "Folder",
-                                                             "Creatures":  {
-                                                                               "$path":  "src/assets/creatures"
-                                                                           },
-                                                             "Items":  {
-                                                                           "$path":  "src/assets/items"
-                                                                       }
-                                                         }
-                                   }
-             }
+  "name": "RealmsOfLumia",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "$className": "ReplicatedStorage",
+      "Lumia": {
+        "$className": "Folder",
+        "Shared": {
+          "$className": "Folder",
+          "$path": "src/shared",
+          "$ignoreUnknownInstances": true
+        }
+      }
+    },
+    "ServerScriptService": {
+      "$className": "ServerScriptService",
+      "LumiaServer": {
+        "$className": "Folder",
+        "Services": {
+          "$className": "Folder",
+          "$path": "src/server",
+          "$ignoreUnknownInstances": true
+        }
+      }
+    },
+    "StarterPlayer": {
+      "$className": "StarterPlayer",
+      "StarterPlayerScripts": {
+        "$className": "StarterPlayerScripts",
+        "LumiaClient": {
+          "$className": "Folder",
+          "Controllers": {
+            "$className": "Folder",
+            "$path": "src/client",
+            "$ignoreUnknownInstances": true
+          }
+        }
+      }
+    },
+    "ServerStorage": {
+      "$className": "ServerStorage",
+      "LumiaAssets": {
+        "$className": "Folder",
+        "Creatures": {
+          "$path": "src/assets/creatures"
+        },
+        "Items": {
+          "$path": "src/assets/items"
+        }
+      }
+    }
+  }
 }

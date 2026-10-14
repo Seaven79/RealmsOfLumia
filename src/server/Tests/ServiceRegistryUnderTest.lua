@@ -81,7 +81,7 @@ end
 
 function ServiceRegistry.InitAll()
     if state ~= "Registered" then
-        warn("[Eternia] Initialization already attempted")
+        warn("[Lumia] Initialization already attempted")
         return false
     end
 
@@ -91,7 +91,7 @@ function ServiceRegistry.InitAll()
 
     if not ok then
         state = "Failed"
-        warn("[Eternia] Dependency error: " .. tostring(result))
+        warn("[Lumia] Dependency error: " .. tostring(result))
         return false
     end
 
@@ -108,12 +108,12 @@ function ServiceRegistry.InitAll()
 
         if not success then
             state = "Failed"
-            warn("[Eternia] Init failed: " .. name .. " - " .. tostring(err))
+            warn("[Lumia] Init failed: " .. name .. " - " .. tostring(err))
             return false
         end
 
         initialized[name] = true
-        print("[Eternia] Service initialized: " .. name)
+        print("[Lumia] Service initialized: " .. name)
     end
 
     state = "Initialized"
@@ -122,7 +122,7 @@ end
 
 function ServiceRegistry.StartAll()
     if state ~= "Initialized" then
-        warn("[Eternia] Services not ready to start")
+        warn("[Lumia] Services not ready to start")
         return false
     end
 
@@ -139,12 +139,12 @@ function ServiceRegistry.StartAll()
 
         if not success then
             state = "Failed"
-            warn("[Eternia] Start failed: " .. name .. " - " .. tostring(err))
+            warn("[Lumia] Start failed: " .. name .. " - " .. tostring(err))
             return false
         end
 
         started[name] = true
-        print("[Eternia] Service started: " .. name)
+        print("[Lumia] Service started: " .. name)
     end
 
     state = "Started"

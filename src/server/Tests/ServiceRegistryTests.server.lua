@@ -33,7 +33,7 @@ local function test(name, callback)
     end
 end
 
-print("========== ETERNIA REGISTRY TESTS ==========")
+print("========== LUMIA REGISTRY TESTS ==========")
 
 test("Dependencies control initialization and startup order", function()
     local registry, copy = newRegistry()
