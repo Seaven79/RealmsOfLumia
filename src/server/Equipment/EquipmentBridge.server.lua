@@ -6,6 +6,7 @@ local EquipmentService = require(services:WaitForChild("Equipment"):WaitForChild
 local InventoryService = require(services:WaitForChild("Inventory"):WaitForChild("InventoryService"))
 local PlayerDataService = require(services:WaitForChild("Players"):WaitForChild("PlayerDataService"))
 local BagSnapshot = require(services:WaitForChild("Inventory"):WaitForChild("BagSnapshot"))
+local SwordCombatService = require(services:WaitForChild("Combat"):WaitForChild("SwordCombatService"))
 local lumia = ReplicatedStorage:WaitForChild("Lumia")
 local network = lumia:FindFirstChild("EquipmentNetwork")
 if not network then
@@ -73,6 +74,8 @@ local function invoke(player, action, ...)
         return { Ok = false, Error = "Equipment unavailable" }
     end
     if not ok then return { Ok = false, Error = tostring(info) } end
+    -- The visual sword follows the authoritative MainHand item.
+    SwordCombatService:Refresh(player)
     local bag, equipment = snapshots(player)
     if bag and equipment then
         return { Ok = true, Slot = info, Bag = bag, Equipment = equipment }

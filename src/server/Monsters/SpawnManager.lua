@@ -67,26 +67,33 @@ local function withinRadius(roots, position, radius)
 end
 
 local function findGround(position)
+    -- The old cast began 60 studs above the player and would hit rooftops
+    -- before reaching the real ground. Cast from close to foot level instead.
     local params = RaycastParams.new()
     params.FilterType = Enum.RaycastFilterType.Exclude
 
+    local excluded = {}
     local monsters = workspace:FindFirstChild("LumiaMonsters")
+    if monsters then table.insert(excluded, monsters) end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Character then table.insert(excluded, player.Character) end
+    end
+    params.FilterDescendantsInstances = excluded
 
-    if monsters then
-        params.FilterDescendantsInstances = {monsters}
+    local start = position + Vector3.new(0, 1.5, 0)
+    local hit = workspace:Raycast(start, Vector3.new(0, -85, 0), params)
+    if not hit or hit.Normal.Y < 0.72 then
+        return nil
     end
 
-    local hit = workspace:Raycast(
-        position + Vector3.new(0, 60, 0),
-        Vector3.new(0, -180, 0),
-        params
-    )
-
-    if hit then
-        return hit.Position + Vector3.new(0, 3.5, 0)
+    -- Reject elevated platforms much higher than the adjacent player's feet.
+    -- Dedicated future spawn markers will offer more precise zone placement.
+    local expectedGroundY = position.Y - 3.5
+    if math.abs(hit.Position.Y - expectedGroundY) > 4.25 then
+        return nil
     end
 
-    return position + Vector3.new(0, 5, 0)
+    return hit.Position + Vector3.new(0, 3.5, 0)
 end
 
 local function activate(point)
@@ -268,14 +275,19 @@ function SpawnManager:Start()
         end
 
         for index, offset in ipairs(offsets) do
-            points[index] = {
-                id = "ForgottenForest_Wolf_" .. index,
-                monsterId = "ForestWolf",
-                position = findGround(center + offset),
-                lastPosition = nil,
-                state = "Inactive",
-                lastCombat = 0,
-            }
+            local groundPosition = findGround(center + offset)
+            if groundPosition then
+                points[#points + 1] = {
+                    id = "ForgottenForest_Wolf_" .. index,
+                    monsterId = "ForestWolf",
+                    position = groundPosition,
+                    lastPosition = nil,
+                    state = "Inactive",
+                    lastCombat = 0,
+                }
+            else
+                warn("[Lumia] Skipping blocked or elevated wolf spawn " .. index)
+            end
         end
 
         print(

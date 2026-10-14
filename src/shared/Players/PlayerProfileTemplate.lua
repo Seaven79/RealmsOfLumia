@@ -36,6 +36,13 @@ PlayerProfileTemplate.Default = {
         ShowQuestTracker = true,
         BagViewMode = "selected",
         SelectedBagId = 1,
+        -- Player-customizable movement controls, saved with the existing profile.
+        Keybinds = {
+            Forward = "W",
+            Backward = "S",
+            StrafeLeft = "A",
+            StrafeRight = "D",
+        },
     },
 }
 

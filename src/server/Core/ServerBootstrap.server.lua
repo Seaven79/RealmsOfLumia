@@ -9,6 +9,7 @@ local EquipmentService = require(services:WaitForChild("Equipment"):WaitForChild
 local ProgressionService = require(services:WaitForChild("Progression"):WaitForChild("ProgressionService"))
 local MonsterService = require(services:WaitForChild("Monsters"):WaitForChild("MonsterService"))
 local SpawnManager = require(services:WaitForChild("Monsters"):WaitForChild("SpawnManager"))
+local SwordCombatService = require(services:WaitForChild("Combat"):WaitForChild("SwordCombatService"))
 
 print("[Lumia] MMO server bootstrap starting...")
 
@@ -57,6 +58,13 @@ ServiceRegistry.Register(
     "SpawnManager",
     SpawnManager,
     {"MonsterService"}
+)
+
+SwordCombatService:Configure(PlayerDataService)
+ServiceRegistry.Register(
+    "SwordCombatService",
+    SwordCombatService,
+    {"PlayerDataService", "EquipmentService", "MonsterService"}
 )
 
 local initialized = ServiceRegistry.InitAll()
