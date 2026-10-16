@@ -46,14 +46,14 @@ local function createFallback()
     description:Destroy()
 
     if not success or not result then
-        warn("[Lumia] Fallback rig creation failed: "
+        warn("[Lumia - Creature Factory] Fallback rig creation failed: "
             .. tostring(result))
         return nil
     end
 
     if not validRig(result) then
         result:Destroy()
-        warn("[Lumia] Fallback rig validation failed")
+        warn("[Lumia - Creature Factory] Fallback rig validation failed")
         return nil
     end
 
@@ -62,14 +62,14 @@ end
 
 function CreatureFactory.Create(monsterId, definition)
     if type(definition) ~= "table" then
-        warn("[Lumia] Invalid creature definition")
+        warn("[Lumia - Creature Factory] Invalid creature definition")
         return nil
     end
 
     local modelId = definition.ModelId or monsterId
 
     if type(modelId) ~= "string" or modelId == "" then
-        warn("[Lumia] Invalid creature ModelId")
+        warn("[Lumia - Creature Factory] Invalid creature ModelId")
         return nil
     end
 
@@ -78,14 +78,14 @@ function CreatureFactory.Create(monsterId, definition)
 
     if template then
         if not validRig(template) then
-            warn("[Lumia] Invalid creature asset: " .. modelId)
+            warn("[Lumia - Creature Factory] Invalid creature asset: " .. modelId)
         else
             local success, clone = pcall(function()
                 return template:Clone()
             end)
 
             if success and clone and validRig(clone) then
-                print("[Lumia] Loaded creature model: " .. modelId)
+                print("[Lumia - Creature Factory] Loaded creature model: " .. modelId)
                 return clone
             end
 
@@ -93,10 +93,10 @@ function CreatureFactory.Create(monsterId, definition)
                 clone:Destroy()
             end
 
-            warn("[Lumia] Failed to clone creature: " .. modelId)
+            warn("[Lumia - Creature Factory] Failed to clone creature: " .. modelId)
         end
     else
-        warn("[Lumia] Creature asset unavailable: "
+        warn("[Lumia - Creature Factory] Creature asset unavailable: "
             .. modelId .. " - using R6 fallback")
     end
 

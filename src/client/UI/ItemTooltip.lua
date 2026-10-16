@@ -12,6 +12,8 @@ local ItemDefinitions = require(
         :WaitForChild("Shared"):WaitForChild("Items"):WaitForChild("ItemDefinitions")
 )
 
+local Currency = require(ReplicatedStorage:WaitForChild("Lumia")
+    :WaitForChild("Shared"):WaitForChild("Commerce"):WaitForChild("LumiaCurrency"))
 local ItemTooltip = {}
 ItemTooltip.__index = ItemTooltip
 
@@ -172,6 +174,17 @@ function ItemTooltip:Show(item)
         end
     end
 
+    for _,entry in ipairs({
+        {"Attack", "+%d Attack"}, {"Defense", "+%d Defense"},
+        {"BonusHealth", "+%d Maximum HP"},
+    }) do
+        local amount=getField(item,definition,entry[1])
+        if type(amount)=="number" and amount>0 then
+            makeLabel(self.Frame,string.format(entry[2],amount),15,currentY,285,19,12,Theme.Green,true)
+            currentY += 21
+        end
+    end
+
     local level = getField(item, definition, "RequiredLevel")
     if type(level) == "number" then
         makeLabel(self.Frame, "Requires level " .. tostring(level), 15, currentY + 1, 285, 19, 12, Theme.White, false)
@@ -185,6 +198,26 @@ function ItemTooltip:Show(item)
         description.TextTruncate = Enum.TextTruncate.None
         description.TextYAlignment = Enum.TextYAlignment.Top
         currentY += 49
+    end
+
+    if type(item.Quantity)=="number" and item.Quantity>1 then
+        makeLabel(self.Frame,"Stack: "..tostring(item.Quantity),15,currentY,285,19,12,Theme.Secondary,false)
+        currentY+=22
+    end
+    if type(item.StoreBuyPrice)=="number" then
+        makeLabel(self.Frame,"Purchase: "..Currency.FormatShort(item.StoreBuyPrice),
+            15,currentY,285,23,12,Theme.Gold,true)
+        currentY+=25
+    end
+    local resale=item.StoreSellPrice
+    if resale==nil then resale=definition.SellValue end
+    if type(resale)=="number" and resale>0 then
+        makeLabel(self.Frame,"Merchant pays: "..Currency.FormatShort(resale),
+            15,currentY,285,23,12,Theme.Gold,false)
+        currentY+=25
+    elseif itemType=="Quest" or definition.QuestItem==true then
+        makeLabel(self.Frame,"Quest item - cannot be sold",15,currentY,285,22,12,Theme.Gold,true)
+        currentY+=24
     end
 
     if getField(item, definition, "CanBeDropped") == false then

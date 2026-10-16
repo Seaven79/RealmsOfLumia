@@ -22,6 +22,8 @@ function BagSnapshot.PublicItem(record)
         Type = definition.Type,
         SubType = definition.SubType,
         Damage = definition.Damage,
+        Attack = definition.Attack, Defense = definition.Defense,
+        BonusHealth = definition.BonusHealth, GearTier = definition.GearTier,
         Cooldown = definition.Cooldown,
         RequiredLevel = definition.RequiredLevel,
         IconId = definition.IconId,
@@ -43,6 +45,7 @@ function BagSnapshot.Build(player)
     return {
         Items = items,
         Bags = bags,
+        Currency = profile and profile.Character and profile.Character.Gold or 0,
         ViewMode = settings.BagViewMode == "all" and "all" or "selected",
         SelectedBagId = type(settings.SelectedBagId) == "number"
             and math.clamp(math.floor(settings.SelectedBagId), 1, 5) or 1,

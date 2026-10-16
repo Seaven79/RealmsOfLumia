@@ -1,4 +1,4 @@
--- REALMS OF LUMIA - SWORD COMBAT SERVICE (FRONTAL MELEE HITBOX + CLOSE RANGE)
+-- REALMS OF LUMIA - SWORD COMBAT SERVICE (MELEE ON STEPS / SLOPES)
 -- Only the server chooses weapon, target, hit timing, and damage.
 -- The custom inventory remains the ONLY owner of equipped item records.
 -- Native Roblox Tool equip handles the physical sword on both R6 and R15.
@@ -16,6 +16,7 @@ local shared = ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local ItemDefinitions = require(shared:WaitForChild("Items"):WaitForChild("ItemDefinitions"))
 local services = script.Parent.Parent
 local ItemFactory = require(services:WaitForChild("Items"):WaitForChild("ItemFactory"))
+local CombatStats = require(script.Parent:WaitForChild("CombatStats"))
 
 local SwordCombatService = {}
 local dataService = nil
@@ -30,7 +31,10 @@ local attackRemote
 local swingRemote
 local hitRemote
 
-local HITBOX_HEIGHT = 4.5
+-- Allow the melee volume to reach a creature standing a few studs lower/higher.
+-- Final target validation still enforces lateral reach, facing, and wall checks.
+local HITBOX_HEIGHT = 7.0
+local MAX_TARGET_VERTICAL_SEPARATION = 4.0
 local HITBOX_MIN_WIDTH = 4.5
 local HITBOX_MAX_WIDTH = 7.5
 local HITBOX_FRONT_PADDING = -0.15
@@ -203,13 +207,13 @@ local function syncWeapon(player, record, definition)
 
     local tool = ItemFactory.Create(record.ItemId)
     if not tool then
-        warn("[Lumia] Sword model missing. Equipment data was NOT modified.")
+        warn("[Lumia - Sword Combat Service] Sword model missing. Equipment data was NOT modified.")
         return true
     end
 
     local handle = tool:FindFirstChild("Handle")
     if not handle or not handle:IsA("BasePart") then
-        warn("[Lumia] Sword Tool has no BasePart named Handle")
+        warn("[Lumia - Sword Combat Service] Sword Tool has no BasePart named Handle")
         tool:Destroy()
         return true
     end
@@ -218,7 +222,7 @@ local function syncWeapon(player, record, definition)
     activeTools[player] = tool
     tool.Parent = backpack
     humanoid:EquipTool(tool)
-    print("[Lumia] Sword equipped in hand: " .. player.Name)
+    print("[Lumia - Sword Combat Service] Sword equipped in hand: " .. player.Name)
     return true
 end
 
@@ -258,7 +262,7 @@ function SwordCombatService:Init()
     swingRemote = event("SwordSwing")
     hitRemote = event("SwordHit")
 
-    print("[Lumia] SwordCombatService initialized")
+    print("[Lumia - Sword Combat Service] SwordCombatService initialized")
 end
 
 -- The profile loads asynchronously; a bounded wait equips saved weapons on join.
@@ -300,19 +304,36 @@ local function getForwardFlat(root)
     return forward.Unit
 end
 
-local function hasLineOfSight(character, tool, model, origin, target)
+-- Do not fire a single low ray through the edge of a stepping stone.
+-- Test body-height lines between the attacker and monster; any unobstructed
+-- line means the weapon can reach the enemy without passing through a wall.
+-- Tall house walls continue to obstruct every line.
+local function hasLineOfSight(character, tool, model, attackerRoot, targetRoot)
     local rayParams = RaycastParams.new()
     rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.IgnoreWater = true
 
     local excluded = { character }
     if tool then
         table.insert(excluded, tool)
     end
-
     rayParams.FilterDescendantsInstances = excluded
 
-    local hit = Workspace:Raycast(origin, target - origin, rayParams)
-    return hit == nil or hit.Instance:IsDescendantOf(model)
+    local heightPairs = {
+        { 1.25, 0.60 }, -- original body ray
+        { 2.10, 1.45 }, -- chest-to-upper-body; clears most small steps
+        { 2.65, 1.90 }, -- upper-body fallback for downhill attacks
+    }
+
+    for _, pair in ipairs(heightPairs) do
+        local origin = attackerRoot.Position + Vector3.new(0, pair[1], 0)
+        local target = targetRoot.Position + Vector3.new(0, pair[2], 0)
+        local hit = Workspace:Raycast(origin, target - origin, rayParams)
+        if not hit or hit.Instance:IsDescendantOf(model) then
+            return true
+        end
+    end
+    return false
 end
 
 local function findMonsterModel(instance)
@@ -334,8 +355,10 @@ local function getAttackHitbox(root, range)
     -- Box begins just behind the player's root and projects forward.
     -- This prevents an NPC partially overlapping the avatar from vanishing
     -- from the hitbox, while still preventing full rear attacks.
+    -- Center closer to the attacker's feet, rather than above the waist.
+    -- This gives the box room BELOW raised walkways as well as above them.
     local center = root.Position
-        + Vector3.new(0, 1.3, 0)
+        + Vector3.new(0, 0.2, 0)
         + forward * (depth * 0.5 + HITBOX_FRONT_PADDING)
 
     return CFrame.lookAt(center, center + forward),
@@ -366,17 +389,33 @@ local function bestTarget(character, tool, root, range)
         end
     end
 
-    -- At point-blank range the wolf can already be partly inside the
-    -- player's collision capsule. Include it without granting broad rear hits.
+    -- Root-position fallback prevents an elevation offset, or a model with
+    -- non-queryable decorative parts, from disappearing from the hitbox.
+    -- Still require horizontal reach, limited height difference, and facing.
+    -- The original code already scanned this folder to recover close targets.
+    local nearestFlat = math.huge
+    local nearestHeight = 0
+    local nearestFacing = 0
     for _, model in ipairs(folder:GetChildren()) do
         if model:IsA("Model") and type(model:GetAttribute("MonsterId")) == "string" then
             local monsterRoot = model:FindFirstChild("HumanoidRootPart")
-            if monsterRoot and monsterRoot:IsA("BasePart") then
-                local near = monsterRoot.Position - root.Position
-                local flat = Vector3.new(near.X, 0, near.Z)
-                if flat.Magnitude <= CLOSE_RANGE_RECOVERY
-                    and math.abs(near.Y) < HITBOX_HEIGHT
-                    and (flat.Magnitude < 0.15 or forward:Dot(flat.Unit) >= -0.15) then
+            local monsterHumanoid = model:FindFirstChildOfClass("Humanoid")
+            if monsterRoot and monsterRoot:IsA("BasePart")
+                and monsterHumanoid and monsterHumanoid.Health > 0 then
+                local offset = monsterRoot.Position - root.Position
+                local flat = Vector3.new(offset.X, 0, offset.Z)
+                local flatDistance = flat.Magnitude
+                local facing = flatDistance < 0.15 and 1 or forward:Dot(flat.Unit)
+                if flatDistance < nearestFlat then
+                    nearestFlat = flatDistance
+                    nearestHeight = math.abs(offset.Y)
+                    nearestFacing = facing
+                end
+                local close = flatDistance <= CLOSE_RANGE_RECOVERY
+                local facingLimit = close and -0.15 or HITBOX_MIN_DOT
+                if flatDistance <= range + HITBOX_REACH_PADDING
+                    and math.abs(offset.Y) <= MAX_TARGET_VERTICAL_SEPARATION
+                    and facing >= facingLimit then
                     candidates[model] = true
                 end
             end
@@ -384,6 +423,7 @@ local function bestTarget(character, tool, root, range)
     end
 
     local bestModel, bestHumanoid, bestScore
+    local blockedByWall = false
     for model in pairs(candidates) do
         local humanoid = model:FindFirstChildOfClass("Humanoid")
         local targetRoot = model:FindFirstChild("HumanoidRootPart")
@@ -391,30 +431,39 @@ local function bestTarget(character, tool, root, range)
         if humanoid and humanoid.Health > 0
             and targetRoot and targetRoot:IsA("BasePart") then
             local delta = targetRoot.Position - root.Position
-            local distance = delta.Magnitude
             local flat = Vector3.new(delta.X, 0, delta.Z)
             local flatDistance = flat.Magnitude
+            local verticalDistance = math.abs(delta.Y)
             local close = flatDistance <= CLOSE_RANGE_RECOVERY
-                and math.abs(delta.Y) <= HITBOX_HEIGHT
+                and verticalDistance <= MAX_TARGET_VERTICAL_SEPARATION
             local facing = flatDistance < 0.15 and 1
                 or forward:Dot(flat.Unit)
             local allowedFacing = close and -0.15 or HITBOX_MIN_DOT
 
-            if distance <= range + HITBOX_REACH_PADDING
+            -- Sword reach is measured across the ground plane. Raised steps
+            -- must not shorten an otherwise valid 7-stud melee attack.
+            if flatDistance <= range + HITBOX_REACH_PADDING
+                and verticalDistance <= MAX_TARGET_VERTICAL_SEPARATION
                 and facing >= allowedFacing then
-                local origin = root.Position + Vector3.new(0, 1.25, 0)
-                local target = targetRoot.Position + Vector3.new(0, 0.6, 0)
-                if hasLineOfSight(character, tool, model, origin, target) then
-                    local score = facing * 100 - distance * 6
+                if hasLineOfSight(character, tool, model, root, targetRoot) then
+                    local score = facing * 100 - flatDistance * 6
                     if not bestScore or score > bestScore then
                         bestModel, bestHumanoid, bestScore = model, humanoid, score
                     end
+                else
+                    blockedByWall = true
                 end
             end
         end
     end
 
-    return bestModel, bestHumanoid
+    local debugInfo = {
+        NearestFlat = nearestFlat,
+        NearestHeight = nearestHeight,
+        NearestFacing = nearestFacing,
+        BlockedByWall = blockedByWall,
+    }
+    return bestModel, bestHumanoid, debugInfo
 end
 
 function SwordCombatService:_onAttack(player)
@@ -450,6 +499,8 @@ function SwordCombatService:_onAttack(player)
     hitDelay = math.clamp(hitDelay, 0.06, math.min(cooldown, 0.65))
     damage = math.clamp(damage, 0, 100)
     range = math.clamp(range, 2.5, 10)
+    local stats = CombatStats.Get(player)
+    damage = math.clamp(math.floor(damage + (stats and stats.Attack or 0)), 1, 160)
 
     local now = os.clock()
     if lastAttacks[player] and now - lastAttacks[player] < cooldown then
@@ -477,16 +528,38 @@ function SwordCombatService:_onAttack(player)
             return
         end
 
-        local model, targetHumanoid = bestTarget(character, tool, liveRoot, range)
+        local model, targetHumanoid, debugInfo = bestTarget(character, tool, liveRoot, range)
         if not model or not targetHumanoid then
+            -- Optional Studio diagnostic, off by default. In SERVER Command Bar:
+            -- workspace:SetAttribute("LumiaMeleeDebug", true)
+            if Workspace:GetAttribute("LumiaMeleeDebug") == true then
+                if debugInfo and debugInfo.NearestFlat < math.huge then
+                    print(string.format(
+                        "[Lumia][Melee] MISS %s: nearest wolf horizontal=%.1f studs, height difference=%.1f, facing=%.2f, wall=%s, allowed reach=%.1f",
+                        player.Name, debugInfo.NearestFlat,
+                        debugInfo.NearestHeight, debugInfo.NearestFacing,
+                        tostring(debugInfo.BlockedByWall), range + HITBOX_REACH_PADDING
+                    ))
+                else
+                    print("[Lumia - Sword Combat Service] [Melee] MISS " .. player.Name .. ": no living monsters found")
+                end
+            end
             return
         end
 
+        -- Server-validated attribution for loot; never trust a client claim.
+        model:SetAttribute("LumiaLastHitUserId", player.UserId)
+        model:SetAttribute("LumiaLastHitAt", os.clock())
+        if model:GetAttribute("MonsterId")=="ThornboundGuardian"
+            and model:GetAttribute("LumiaBossEncounter")==true then
+            local hitKey="LumiaBossHit_"..player.UserId
+            model:SetAttribute(hitKey,(model:GetAttribute(hitKey) or 0)+1)
+        end
         targetHumanoid:TakeDamage(damage)
         hitRemote:FireClient(player, model, damage)
 
         print(
-            "[Lumia] "
+            "[Lumia - Sword Combat Service] "
                 .. player.Name
                 .. " hit "
                 .. model.Name
@@ -550,7 +623,7 @@ function SwordCombatService:Start()
         hookPlayer(self, player)
     end
 
-    print("[Lumia] SwordCombatService started")
+    print("[Lumia - Sword Combat Service] SwordCombatService started")
 end
 
 return SwordCombatService

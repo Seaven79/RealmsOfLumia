@@ -1,3 +1,4 @@
+local CharacterClassConfig = require(script.Parent:WaitForChild("CharacterClassConfig"))
 local PlayerProfileTemplate = {}
 
 PlayerProfileTemplate.VERSION = 1
@@ -7,6 +8,7 @@ PlayerProfileTemplate.Default = {
 
     Character = {
         Name = "",
+        Class = CharacterClassConfig.DEFAULT_CLASS,
         Level = 1,
         Experience = 0,
         Gold = 0,

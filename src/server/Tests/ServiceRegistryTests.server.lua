@@ -23,17 +23,17 @@ local function test(name, callback)
 
     if ok and result == true then
         passed += 1
-        print("[REGISTRY TEST] PASS: " .. name)
+        print("[Lumia - Service Registry Tests] PASS: " .. name)
     else
         failed += 1
-        warn("[REGISTRY TEST] FAIL: " .. name)
+        warn("[Lumia - Service Registry Tests] FAIL: " .. name)
         if not ok then
-            warn("[REGISTRY TEST] ERROR: " .. tostring(result))
+            warn("[Lumia - Service Registry Tests] ERROR: " .. tostring(result))
         end
     end
 end
 
-print("========== LUMIA REGISTRY TESTS ==========")
+print("[Lumia - Service Registry Tests] ========== LUMIA REGISTRY TESTS ==========")
 
 test("Dependencies control initialization and startup order", function()
     local registry, copy = newRegistry()
@@ -105,15 +105,15 @@ test("Circular dependencies prevent startup", function()
 end)
 
 print(
-    "[REGISTRY TEST] RESULTS: "
+    "[Lumia - Service Registry Tests] RESULTS: "
     .. passed .. " passed, "
     .. failed .. " failed"
 )
 
 if passed == 3 and failed == 0 then
-    print("[REGISTRY TEST] ALL TESTS PASSED!")
+    print("[Lumia - Service Registry Tests] ALL TESTS PASSED!")
 else
-    warn("[REGISTRY TEST] SOME TESTS FAILED!")
+    warn("[Lumia - Service Registry Tests] SOME TESTS FAILED!")
 end
 
-print("===========================================")
+print("[Lumia - Service Registry Tests] ===========================================")

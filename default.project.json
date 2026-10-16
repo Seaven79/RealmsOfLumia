@@ -1,54 +1,59 @@
 {
-  "name": "RealmsOfLumia",
-  "tree": {
-    "$className": "DataModel",
-    "ReplicatedStorage": {
-      "$className": "ReplicatedStorage",
-      "Lumia": {
-        "$className": "Folder",
-        "Shared": {
-          "$className": "Folder",
-          "$path": "src/shared",
-          "$ignoreUnknownInstances": true
-        }
-      }
-    },
-    "ServerScriptService": {
-      "$className": "ServerScriptService",
-      "LumiaServer": {
-        "$className": "Folder",
-        "Services": {
-          "$className": "Folder",
-          "$path": "src/server",
-          "$ignoreUnknownInstances": true
-        }
-      }
-    },
-    "StarterPlayer": {
-      "$className": "StarterPlayer",
-      "StarterPlayerScripts": {
-        "$className": "StarterPlayerScripts",
-        "LumiaClient": {
-          "$className": "Folder",
-          "Controllers": {
-            "$className": "Folder",
-            "$path": "src/client",
-            "$ignoreUnknownInstances": true
-          }
-        }
-      }
-    },
-    "ServerStorage": {
-      "$className": "ServerStorage",
-      "LumiaAssets": {
-        "$className": "Folder",
-        "Creatures": {
-          "$path": "src/assets/creatures"
-        },
-        "Items": {
-          "$path": "src/assets/items"
-        }
-      }
-    }
-  }
+    "name":  "RealmsOfLumia",
+    "tree":  {
+                 "$className":  "DataModel",
+                 "ReplicatedStorage":  {
+                                           "$className":  "ReplicatedStorage",
+                                           "Lumia":  {
+                                                         "$className":  "Folder",
+                                                         "Shared":  {
+                                                                        "$className":  "Folder",
+                                                                        "$path":  "src/shared",
+                                                                        "$ignoreUnknownInstances":  true
+                                                                    }
+                                                     }
+                                       },
+                 "ServerScriptService":  {
+                                             "$className":  "ServerScriptService",
+                                             "LumiaServer":  {
+                                                                 "$className":  "Folder",
+                                                                 "Services":  {
+                                                                                  "$className":  "Folder",
+                                                                                  "$path":  "src/server",
+                                                                                  "$ignoreUnknownInstances":  true
+                                                                              }
+                                                             }
+                                         },
+                 "StarterPlayer":  {
+                                       "$className":  "StarterPlayer",
+                                       "StarterPlayerScripts":  {
+                                                                    "$className":  "StarterPlayerScripts",
+                                                                    "LumiaClient":  {
+                                                                                        "$className":  "Folder",
+                                                                                        "Controllers":  {
+                                                                                                            "$className":  "Folder",
+                                                                                                            "$path":  "src/client",
+                                                                                                            "$ignoreUnknownInstances":  true
+                                                                                                        }
+                                                                                    }
+                                                                }
+                                   },
+                 "ServerStorage":  {
+                                       "$className":  "ServerStorage",
+                                       "LumiaAssets":  {
+                                                           "$className":  "Folder",
+                                                           "Creatures":  {
+                                                                             "$path":  "src/assets/creatures"
+                                                                         },
+                                                           "Items":  {
+                                                                         "$path":  "src/assets/items"
+                                                                     }
+                                                       }
+                                   },
+                 "ReplicatedFirst":  {
+                                         "$className":  "ReplicatedFirst",
+                                         "$path":  "src/replicatedFirst",
+                                         "$ignoreUnknownInstances":  true
+                                     }
+             }
 }

@@ -25,8 +25,9 @@ local function remote(name)
 end
 local request = remote("GetInventory")
 local moveRequest = remote("MoveBagItem")
+local discardRequest = remote("DiscardBagItem")
 local preferenceRequest = remote("SetBagView")
-local lastRead, lastMove, lastPreference = {}, {}, {}
+local lastRead, lastMove, lastPreference, lastDiscard = {}, {}, {}, {}
 local function validPlayer(player)
     return player and player:IsA("Player") and player.Parent == Players
 end
@@ -54,11 +55,32 @@ moveRequest.OnServerInvoke = function(player, args)
             args.FromBag, args.FromSlot, args.ToBag, args.ToSlot)
     end)
     if not ok then
-        warn("[Lumia] Bag move error: " .. tostring(allowed))
+        warn("[Lumia - Inventory Bridge] Bag move error: " .. tostring(allowed))
         return { Ok = false, Error = "Inventory unavailable" }
     end
     if not allowed then return { Ok = false, Error = tostring(info) } end
     return { Ok = true, Bag = BagSnapshot.Build(player) }
+end
+
+discardRequest.OnServerInvoke = function(player, args)
+    if not validPlayer(player) or type(args) ~= "table" then
+        return { Ok = false, Error = "Invalid request" }
+    end
+    if not throttle(lastDiscard, player, 0.25) then
+        return { Ok = false, Error = "Please wait" }
+    end
+    if type(args.ItemId) ~= "string" or #args.ItemId > 80
+        or (args.InstanceId ~= nil and (type(args.InstanceId) ~= "string"
+        or #args.InstanceId > 80)) then
+        return { Ok = false, Error = "Invalid item" }
+    end
+    local ok, allowed, info = pcall(function()
+        return InventoryService:DiscardBagItem(player, args.BagId, args.Slot,
+            args.ItemId, args.InstanceId, args.ConfirmWeapon)
+    end)
+    if not ok then return { Ok = false, Error = "Unable to destroy item" } end
+    if not allowed then return { Ok = false, Error = tostring(info) } end
+    return { Ok = true, Message = tostring(info), Bag = BagSnapshot.Build(player) }
 end
 
 preferenceRequest.OnServerInvoke = function(player, mode, bagId)
@@ -75,6 +97,6 @@ preferenceRequest.OnServerInvoke = function(player, mode, bagId)
 end
 
 Players.PlayerRemoving:Connect(function(player)
-    lastRead[player], lastMove[player], lastPreference[player] = nil, nil, nil
+    lastRead[player], lastMove[player], lastPreference[player], lastDiscard[player] = nil, nil, nil, nil
 end)
-print("[Lumia] Bag network ready - five bag positions, starter capacity eight")
+print("[Lumia - Inventory Bridge] Bag network ready - five bag positions, starter capacity eight")

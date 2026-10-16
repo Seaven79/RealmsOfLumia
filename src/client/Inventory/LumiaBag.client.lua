@@ -9,14 +9,20 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local player = Players.LocalPlayer
 local lumia = ReplicatedStorage:WaitForChild("Lumia")
 local ItemIcons = require(lumia:WaitForChild("Shared"):WaitForChild("Items"):WaitForChild("ItemIcons"))
+local ItemPreview = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaItemPreview"))
+local Currency = require(lumia:WaitForChild("Shared"):WaitForChild("Commerce"):WaitForChild("LumiaCurrency"))
+local Coins=require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaCoinUI"))
+local ShopBridge=require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("MerchantUIBridge"))
 local components = script.Parent.Parent:WaitForChild("UI")
 local ItemTooltip = require(components:WaitForChild("ItemTooltip"))
 local BagIcon = require(components:WaitForChild("BagIcon"))
 local EquipmentClient = require(components:WaitForChild("EquipmentClient"))
 local DragDrop = require(components:WaitForChild("EquipmentDragDrop"))
+local ItemDeleteDialog = require(components:WaitForChild("ItemDeleteDialog"))
 local network = lumia:WaitForChild("InventoryNetwork")
 local request = network:WaitForChild("GetInventory")
 local preferenceRequest = network:WaitForChild("SetBagView")
+local discardRequest = network:WaitForChild("DiscardBagItem")
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "LumiaBag"
@@ -107,7 +113,7 @@ local function requestPreferences()
                 return preferenceRequest:InvokeServer(requestedMode, requestedBag)
             end)
             if not ok or not saved then
-                warn("[Lumia] Bag view preference was not saved")
+                warn("[Lumia - Lumia Bag] Bag view preference was not saved")
             end
         end)
     end)
@@ -155,7 +161,12 @@ emptyMessage.LayoutOrder = 1
 emptyMessage.Visible = false
 
 local footer = label(window, "Footer", "0 / 8 slots", 13, HEIGHT - 29,
-    WIDTH - 24, 20, 11, Color3.fromRGB(167, 153, 126))
+    WIDTH - 122, 20, 11, Color3.fromRGB(167, 153, 126))
+local wallet=Coins.Wallet(window,Currency,0,true)
+wallet.Position=UDim2.fromOffset(WIDTH-164,HEIGHT-28)
+wallet:SetAttribute("CurrencyDenominations","Sun/Moon/Cinder")
+-- Drag an item outside all visible UI windows to request destruction.
+-- No trash button: shared DragDrop emits DeleteRequested on a world-view drop.
 local tooltip = ItemTooltip.new(gui)
 local statusSerial = 0
 local defaultFooter = "0 / 8 slots"
@@ -171,6 +182,7 @@ local function showStatus(text)
     end)
 end
 local rarityColors = {
+    Poor = Color3.fromRGB(150, 150, 150),
     Common = Color3.fromRGB(140, 132, 118),
     Uncommon = Color3.fromRGB(65, 170, 90),
     Rare = Color3.fromRGB(70, 125, 230),
@@ -190,6 +202,7 @@ local function setSlotVisualVisible(slot, visible)
     end
 end
 local function addIcon(slot, item)
+    if ItemPreview.Attach(slot,item.ItemId) then return end
     local imageId, symbol = ItemIcons.Resolve(item)
     if imageId then
         local image = Instance.new("ImageLabel")
@@ -325,7 +338,8 @@ local function render(snapshot)
             for slotId, widget in ipairs(section.Widgets) do
                 local slot = widget.Frame
                 for _, child in ipairs(slot:GetChildren()) do
-                    if child.Name == "ItemVisual" or child.Name == "Quantity" then
+                    if child.Name == "ItemVisual" or child.Name == "Quantity"
+                        or child.Name == "ReservedOnBar" then
                         child:Destroy()
                     end
                 end
@@ -354,6 +368,7 @@ local function render(snapshot)
         end
     end
     defaultFooter = tostring(#items) .. " / " .. tostring(capacityTotal) .. " slots"
+    Coins.SetWallet(wallet,Currency,snapshot.Currency or 0)
     if statusSerial == 0 then footer.Text = defaultFooter end
     refreshVisualMode(snapshot)
     if hoveredSlot and hoveredSlot.Item and not DragDrop.IsDragging() then
@@ -408,9 +423,44 @@ DragDrop.Result:Connect(function(ok, message, sourceKind)
     end
 end)
 
+local preTradeVisible=false
+local preTradePosition=nil
+local shopFrame=nil
+local function positionBesideShop()
+    if not shopFrame or not shopFrame.Parent or not shopFrame.Visible then return end
+    local screen=gui.AbsoluteSize
+    local mp,ms=shopFrame.AbsolutePosition,shopFrame.AbsoluteSize
+    local right=mp.X+ms.X+12
+    local left=mp.X-WIDTH-12
+    local x=right+WIDTH<=screen.X-8 and right or left>=8 and left or 8
+    local y=math.clamp(mp.Y+58,8,math.max(8,screen.Y-HEIGHT-8))
+    window.Position=UDim2.fromOffset(math.floor(x),math.floor(y))
+end
+ShopBridge.Changed:Connect(function(open,merchantFrame)
+    if open then
+        preTradeVisible=window.Visible
+        preTradePosition=window.Position
+        shopFrame=merchantFrame
+        window.Visible=true
+        positionBesideShop()
+        task.spawn(function()
+            local ok,snapshot=pcall(function()return request:InvokeServer()end)
+            if ok and snapshot then EquipmentClient.UpdateBagSnapshot(snapshot) end
+        end)
+    else
+        shopFrame=nil
+        window.Visible=preTradeVisible
+        if preTradePosition then window.Position=preTradePosition end
+    end
+    tooltip:Hide()
+    hoveredSlot=nil
+    DragDrop.NotifyWindowsChanged()
+    if window.Visible then updateView() end
+end)
 local manualPosition = false
 local docked = false
 local function arrangeBag()
+    if ShopBridge.IsOpen() then positionBesideShop() return end
     if not window.Visible or manualPosition then return end
     local characterGui = player.PlayerGui:FindFirstChild("LumiaCharacter")
     local charWindow = characterGui and characterGui:FindFirstChild("CharacterWindow")
@@ -465,6 +515,36 @@ local function refresh()
         EquipmentClient.UpdateBagSnapshot(result, startedRevision)
     end
 end
+local deleting = false
+DragDrop.DeleteRequested:Connect(function(item, coordinates)
+    if deleting or not window.Visible or type(item) ~= "table"
+        or type(coordinates) ~= "table" then return end
+    ItemDeleteDialog.Show(item, function(confirmed)
+        if not confirmed then return end
+        deleting = true
+        task.spawn(function()
+            local ok, result = pcall(function()
+                return discardRequest:InvokeServer({
+                    BagId = coordinates.BagId,
+                    Slot = coordinates.Slot,
+                    ItemId = item.ItemId,
+                    InstanceId = item.InstanceId,
+                    ConfirmWeapon = item.Type == "Weapon",
+                })
+            end)
+            deleting = false
+            if not ok or type(result) ~= "table" or not result.Ok then
+                showStatus(type(result) == "table" and tostring(result.Error)
+                    or "Delete request failed")
+                return
+            end
+            if not EquipmentClient.UpdateBagSnapshot(result.Bag) then
+                task.defer(refresh)
+            end
+            showStatus(result.Message or "Item destroyed")
+        end)
+    end)
+end)
 EquipmentClient.BagChanged:Connect(updateView)
 EquipmentClient.NeedsRefresh:Connect(function()
     task.delay(0.25, function()
@@ -473,6 +553,10 @@ EquipmentClient.NeedsRefresh:Connect(function()
 end)
 
 local function toggle()
+    if ShopBridge.IsOpen() then
+        showStatus("Close the merchant window to leave trading")
+        return
+    end
     window.Visible = not window.Visible
     tooltip:Hide()
     hoveredSlot = nil
@@ -483,6 +567,9 @@ local function toggle()
     end
 end
 close.MouseButton1Click:Connect(toggle)
+-- V18 micro menu calls the same validated BAG toggle as the B hotkey.
+local MenuBus = require(components:WaitForChild("LumiaMicroMenuBus"))
+MenuBus.Register("Bag", toggle)
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed or UserInputService:GetFocusedTextBox() then return end
     if input.KeyCode == Enum.KeyCode.B then toggle() end
@@ -493,4 +580,4 @@ task.spawn(function()
         if window.Visible then refresh() end
     end
 end)
-print("[Lumia] Bag V2 ready - B to open, drag to move/swap")
+print("[Lumia - Lumia Bag] Bag ready - drop outside UI to request item destruction")

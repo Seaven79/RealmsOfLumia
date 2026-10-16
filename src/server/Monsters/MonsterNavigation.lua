@@ -4,6 +4,7 @@
 -- One navigation object per active creature, shared implementation for all rigs.
 
 local PathfindingService = game:GetService("PathfindingService")
+local HouseZones = require(script.Parent:WaitForChild("MonsterHouseZones"))
 
 local MonsterNavigation = {}
 MonsterNavigation.__index = MonsterNavigation
@@ -21,7 +22,7 @@ local function flatDistance(a, b)
     return math.sqrt(dx * dx + dz * dz)
 end
 
-local function usablePath(waypoints, homeY)
+local function usablePath(waypoints, homeY, radius)
     if #waypoints < 2 then
         return false
     end
@@ -36,11 +37,20 @@ local function usablePath(waypoints, homeY)
         if i > 1 and math.abs(waypoint.Position.Y - waypoints[i - 1].Position.Y) > MAX_STEP_CHANGE then
             return false
         end
+        if HouseZones.IsRestricted(waypoint.Position, 0.2) then
+            return false
+        end
+        if i > 1 and HouseZones.SegmentRestricted(
+            waypoints[i - 1].Position, waypoint.Position, 0.2
+        ) then
+            return false
+        end
     end
     return true
 end
 
 function MonsterNavigation.new(model, humanoid, root, home)
+    HouseZones.Start()
     local bounds = model:GetExtentsSize()
     local radius = math.clamp(math.min(bounds.X, bounds.Z) * 0.32, 2, 3.8)
     local height = math.clamp(bounds.Y + 0.7, 5, 11)
@@ -110,6 +120,11 @@ end
 
 function MonsterNavigation:SetGoal(position, intent)
     if self.Destroyed or typeof(position) ~= "Vector3" then return end
+    if HouseZones.IsRestricted(position, 0.25) then
+        -- No walking into houses even when a player or random wander goal is inside.
+        self:Stop()
+        return
+    end
     if math.abs(position.Y - self.HomeY) > MAX_GROUND_CHANGE + 2 then
         -- No climbing toward roof-level destinations.
         self:Stop()
@@ -151,6 +166,7 @@ function MonsterNavigation:_requestPath(now)
                 AgentCanJump = false,
                 AgentCanClimb = false,
                 WaypointSpacing = 3,
+                Costs = { LumiaNoMobHouse = math.huge },
             })
             path:ComputeAsync(source, destination)
             if path.Status == Enum.PathStatus.Success then
@@ -168,7 +184,7 @@ function MonsterNavigation:_requestPath(now)
         self.Blocked = false
         self.PathGoal = destination
 
-        if success and waypoints and usablePath(waypoints, self.HomeY) then
+        if success and waypoints and usablePath(waypoints, self.HomeY, self.Radius) then
             self.Route = waypoints
             self.Index = 2 -- first waypoint is the current position
             self.LastProgress = os.clock()
@@ -229,6 +245,11 @@ function MonsterNavigation:Step(now)
         self.LastMove = now
         self.Humanoid:MoveTo(current.Position)
     end
+end
+
+function MonsterNavigation.IsHouseRestricted(position)
+    HouseZones.Start()
+    return HouseZones.IsRestricted(position)
 end
 
 return MonsterNavigation

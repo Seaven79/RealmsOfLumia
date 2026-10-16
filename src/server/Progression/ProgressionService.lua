@@ -12,6 +12,8 @@ local ProgressionConfig = require(
         :WaitForChild("Progression"):WaitForChild("ProgressionConfig")
 )
 
+local BalanceService = require(script.Parent.Parent:WaitForChild("Admin"):WaitForChild("BalanceService"))
+local AchievementService = require(script.Parent:WaitForChild("AchievementService"))
 local ProgressionService = {}
 
 local MAX_REWARD = 1000000
@@ -41,15 +43,15 @@ local function getCharacter(player)
 end
 
 function ProgressionService:Init()
-    print("[Lumia] ProgressionService initialized")
+    print("[Lumia - Progression Service] ProgressionService initialized")
 end
 
 function ProgressionService:Start()
-    print("[Lumia] ProgressionService started")
+    print("[Lumia - Progression Service] ProgressionService started")
 end
 
 function ProgressionService:GetRequiredXP(level)
-    return ProgressionConfig.GetRequiredXP(level)
+    return BalanceService:GetRequiredXP(level)
 end
 
 function ProgressionService:GetMaxLevel()
@@ -95,7 +97,7 @@ function ProgressionService:AddXP(player, amount)
     character.Experience = experience
 
     print(
-        "[Lumia] XP awarded: "
+        "[Lumia - Progression Service] XP awarded: "
         .. player.Name
         .. " +" .. amount
         .. " | Level " .. level
@@ -104,12 +106,14 @@ function ProgressionService:AddXP(player, amount)
 
     if level > previousLevel then
         print(
-            "[Lumia] LEVEL UP: "
+            "[Lumia - Progression Service] LEVEL UP: "
             .. player.Name
             .. " | " .. previousLevel
             .. " -> " .. level
         )
     end
+
+    AchievementService:EvaluateProgress(player)
 
     return true, {
         PreviousLevel = previousLevel,
@@ -136,7 +140,7 @@ function ProgressionService:AddGold(player, amount)
     character.Gold += amount
 
     print(
-        "[Lumia] Gold awarded: "
+        "[Lumia - Progression Service] Gold awarded: "
         .. player.Name
         .. " +" .. amount
         .. " | Total " .. character.Gold

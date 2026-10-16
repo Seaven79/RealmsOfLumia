@@ -47,11 +47,11 @@ function EquipmentService:Configure(playerDataService, invService)
 end
 function EquipmentService:Init()
     assert(dataService and inventoryService, "EquipmentService not configured")
-    print("[Lumia] EquipmentService initialized")
+    print("[Lumia - Equipment Service] EquipmentService initialized")
 end
 function EquipmentService:Start()
     started = true
-    print("[Lumia] EquipmentService started")
+    print("[Lumia - Equipment Service] EquipmentService started")
 end
 
 function EquipmentService:Equip(player, instanceId)

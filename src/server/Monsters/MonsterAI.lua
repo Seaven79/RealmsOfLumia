@@ -6,11 +6,13 @@
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local MonsterNavigation = require(script.Parent:WaitForChild("MonsterNavigation"))
+local CombatStats = require(script.Parent.Parent:WaitForChild("Combat"):WaitForChild("CombatStats"))
 
 local MonsterAI = {}
 
-local MIN_STANDOFF = 4.8
-local MAX_STANDOFF = 11
+local MIN_STANDOFF = 6.2
+local MAX_STANDOFF = 11 -- Explicitly configured large creatures can stand farther.
+local DEFAULT_MAX_STANDOFF = 7.0 -- Keep regular mobs inside the current sword reach.
 local MELEE_CONTACT_MARGIN = 0.7
 local CHASE_BAND = 0.65
 local RETREAT_BAND = 1.2
@@ -36,7 +38,7 @@ local function nearestPlayer(position, radius)
     local nearest, distance = nil, radius
     for _, player in ipairs(Players:GetPlayers()) do
         local _, root = aliveCharacter(player)
-        if root then
+        if root and not MonsterNavigation.IsHouseRestricted(root.Position) then
             local d = (root.Position - position).Magnitude
             if d < distance then
                 nearest, distance = player, d
@@ -57,7 +59,7 @@ local function getStandOff(monsterRadius, definition, targetRoot)
         return math.clamp(explicit, 3.5, MAX_STANDOFF)
     end
     local playerRadius = math.max(targetRoot.Size.X, targetRoot.Size.Z) * 0.5
-    return math.clamp(monsterRadius + playerRadius + 1.25, MIN_STANDOFF, MAX_STANDOFF)
+    return math.clamp(monsterRadius + playerRadius + 1.25, MIN_STANDOFF, DEFAULT_MAX_STANDOFF)
 end
 
 local function getOrCreateFacing(root)
@@ -125,7 +127,7 @@ function MonsterAI.Run(model, definition, home)
     local humanoid = model:FindFirstChildOfClass("Humanoid")
     local root = getRoot(model)
     if not humanoid or not root then
-        warn("[Lumia] Monster AI missing Humanoid or root")
+        warn("[Lumia - Monster AI] Monster AI missing Humanoid or root")
         return
     end
 
@@ -139,7 +141,7 @@ function MonsterAI.Run(model, definition, home)
     local navigator = MonsterNavigation.new(model, humanoid, root, home)
     humanoid.WalkSpeed = definition.WalkSpeed
 
-    print("[Lumia] Ground navigation started: " .. model.Name)
+    print("[Lumia - Monster AI] Ground navigation started: " .. model.Name)
 
     while model.Parent and humanoid.Health > 0 do
         local now = os.clock()
@@ -156,6 +158,7 @@ function MonsterAI.Run(model, definition, home)
         if target then
             local _, targetRoot = aliveCharacter(target)
             if not targetRoot
+                or MonsterNavigation.IsHouseRestricted(targetRoot.Position)
                 or (targetRoot.Position - home).Magnitude > definition.ChaseLimit then
                 target = nil
                 state = "Return"
@@ -169,7 +172,7 @@ function MonsterAI.Run(model, definition, home)
             if target then
                 state = "Chase"
                 navigator:Stop()
-                print("[Lumia] " .. model.Name .. " detected " .. target.Name)
+                print("[Lumia - Monster AI] " .. model.Name .. " detected " .. target.Name)
             end
         end
 
@@ -219,8 +222,10 @@ function MonsterAI.Run(model, definition, home)
                     if distance <= attackDistance and now >= nextAttack then
                         nextAttack = now + definition.AttackCooldown
                         model:SetAttribute("LumiaAttackSerial", (model:GetAttribute("LumiaAttackSerial") or 0) + 1)
-                        targetHumanoid:TakeDamage(definition.Damage)
-                        print("[Lumia] " .. model.Name .. " attacked " .. target.Name)
+                        local rawDamage = definition.Damage
+                        if model:GetAttribute("LumiaBossEnraged") == true then rawDamage *= 1.25 end
+                        targetHumanoid:TakeDamage(CombatStats.IncomingDamage(target, rawDamage))
+                        print("[Lumia - Monster AI] " .. model.Name .. " attacked " .. target.Name)
                     end
                 else
                     state = "Chase"
@@ -263,7 +268,7 @@ function MonsterAI.Run(model, definition, home)
 
     navigator:Destroy()
     updateFacing(humanoid, root, root, false)
-    print("[Lumia] Monster AI stopped: " .. model.Name)
+    print("[Lumia - Monster AI] Monster AI stopped: " .. model.Name)
 end
 
 return MonsterAI

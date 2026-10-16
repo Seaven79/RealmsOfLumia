@@ -23,6 +23,7 @@ Theme.Green = Color3.fromRGB(97, 217, 154)
 Theme.TooltipBackground = Color3.fromRGB(11, 18, 32)
 
 Theme.RarityColors = {
+    Poor = Color3.fromRGB(156, 156, 156),
     Common = Color3.fromRGB(226, 232, 240),
     Uncommon = Color3.fromRGB(97, 217, 154),
     Rare = Color3.fromRGB(103, 167, 255),

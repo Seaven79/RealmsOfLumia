@@ -11,7 +11,7 @@ local MonsterService = require(services:WaitForChild("Monsters"):WaitForChild("M
 local SpawnManager = require(services:WaitForChild("Monsters"):WaitForChild("SpawnManager"))
 local SwordCombatService = require(services:WaitForChild("Combat"):WaitForChild("SwordCombatService"))
 
-print("[Lumia] MMO server bootstrap starting...")
+print("[Lumia - Server Bootstrap] MMO server bootstrap starting...")
 
 ServiceRegistry.Register("PlayerSessionService", PlayerSessionService)
 
@@ -70,14 +70,14 @@ ServiceRegistry.Register(
 local initialized = ServiceRegistry.InitAll()
 
 if not initialized then
-    warn("[Lumia] MMO Core initialization failed!")
+    warn("[Lumia - Server Bootstrap] MMO Core initialization failed!")
     return
 end
 
 local started = ServiceRegistry.StartAll()
 
 if started then
-    print("[Lumia] MMO Core started successfully!")
+    print("[Lumia - Server Bootstrap] MMO Core started successfully!")
 else
-    warn("[Lumia] MMO Core startup failed!")
+    warn("[Lumia - Server Bootstrap] MMO Core startup failed!")
 end

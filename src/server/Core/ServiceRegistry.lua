@@ -81,7 +81,7 @@ end
 
 function ServiceRegistry.InitAll()
     if state ~= "Registered" then
-        warn("[Lumia] Initialization already attempted")
+        warn("[Lumia - Service Registry] Initialization already attempted")
         return false
     end
 
@@ -91,7 +91,7 @@ function ServiceRegistry.InitAll()
 
     if not ok then
         state = "Failed"
-        warn("[Lumia] Dependency error: " .. tostring(result))
+        warn("[Lumia - Service Registry] Dependency error: " .. tostring(result))
         return false
     end
 
@@ -108,12 +108,12 @@ function ServiceRegistry.InitAll()
 
         if not success then
             state = "Failed"
-            warn("[Lumia] Init failed: " .. name .. " - " .. tostring(err))
+            warn("[Lumia - Service Registry] Init failed: " .. name .. " - " .. tostring(err))
             return false
         end
 
         initialized[name] = true
-        print("[Lumia] Service initialized: " .. name)
+        print("[Lumia - Service Registry] Service initialized: " .. name)
     end
 
     state = "Initialized"
@@ -122,7 +122,7 @@ end
 
 function ServiceRegistry.StartAll()
     if state ~= "Initialized" then
-        warn("[Lumia] Services not ready to start")
+        warn("[Lumia - Service Registry] Services not ready to start")
         return false
     end
 
@@ -139,12 +139,12 @@ function ServiceRegistry.StartAll()
 
         if not success then
             state = "Failed"
-            warn("[Lumia] Start failed: " .. name .. " - " .. tostring(err))
+            warn("[Lumia - Service Registry] Start failed: " .. name .. " - " .. tostring(err))
             return false
         end
 
         started[name] = true
-        print("[Lumia] Service started: " .. name)
+        print("[Lumia - Service Registry] Service started: " .. name)
     end
 
     state = "Started"

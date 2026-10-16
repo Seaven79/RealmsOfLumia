@@ -1,12 +1,9 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local MonsterConfig = require(
-    ReplicatedStorage
-        :WaitForChild("Lumia")
-        :WaitForChild("Shared")
-        :WaitForChild("Monsters"):WaitForChild("MonsterConfig")
-)
+-- Monster type data comes from a server-only persisted balance service.
+-- Keep MonsterAI on a per-spawn snapshot so existing AI is not disturbed.
+local MobTuning = require(script.Parent.Parent:WaitForChild("Admin"):WaitForChild("MobTuningService"))
 
 local MonsterAI = require(
     script.Parent:WaitForChild("MonsterAI")
@@ -16,12 +13,50 @@ local CreatureFactory = require(
     script.Parent:WaitForChild("CreatureFactory")
 )
 
+local MonsterDeathPresentation = require(
+    script.Parent:WaitForChild("MonsterDeathPresentation")
+)
+
+local LifecycleEvents = require(script.Parent:WaitForChild("MonsterLifecycleEvents"))
+local LifecycleConfig = require(ReplicatedStorage:WaitForChild("Lumia")
+    :WaitForChild("Shared"):WaitForChild("Monsters")
+    :WaitForChild("CorpseLifecycleConfig"))
+
 local MonsterService = {}
 
 local started = false
 local spawned = false
 
 local folder
+-- Weak keys let removed monsters be garbage-collected normally.
+local cleanupGeneration = setmetatable({}, {__mode = "k"})
+local spawnOrigins = setmetatable({}, {__mode = "k"})
+
+local function scheduleRemoval(self, model, monsterId, fullyLooted)
+    if not model or not model.Parent then return end
+    local generation = (cleanupGeneration[model] or 0) + 1
+    cleanupGeneration[model] = generation
+    local key = fullyLooted and "LootedCorpseSeconds" or "UnlootedCorpseSeconds"
+    local delaySeconds = LifecycleConfig.Get(monsterId, key)
+    task.delay(delaySeconds, function()
+        if cleanupGeneration[model] ~= generation or not model.Parent then return end
+        local pointId = model:GetAttribute("SpawnPointId")
+        local managed = model:GetAttribute("ManagedSpawn") == true
+        local origin = spawnOrigins[model]
+        cleanupGeneration[model] = nil
+        spawnOrigins[model] = nil
+        model:Destroy()
+        -- Start the timer *after* the model disappears, never at death.
+        LifecycleEvents.CorpseRemoved:Fire(model, pointId, monsterId, fullyLooted)
+        if started and not managed and origin then
+            local respawnKey = fullyLooted and "RespawnAfterLootedSeconds"
+                or "RespawnAfterUnlootedSeconds"
+            task.delay(LifecycleConfig.Get(monsterId, respawnKey), function()
+                if started then self:SpawnMonster(monsterId, origin, false) end
+            end)
+        end
+    end)
+end
 
 local function findGround(position)
     local params = RaycastParams.new()
@@ -49,22 +84,30 @@ function MonsterService:Init()
         folder.Parent = workspace
     end
 
-    print("[Lumia] MonsterService initialized")
+    LifecycleEvents.LootCompleted.Event:Connect(function(model)
+        if not model or not model.Parent
+            or model:GetAttribute("LumiaDead") ~= true
+            or model:GetAttribute("LumiaLooted") == true then return end
+        model:SetAttribute("LumiaLooted", true)
+        local monsterId = model:GetAttribute("MonsterId")
+        scheduleRemoval(self, model, monsterId, true)
+        print("[Lumia - Monster Service] Corpse fully looted: 3s cleanup scheduled for " .. model.Name)
+    end)
+    print("[Lumia - Monster Service] MonsterService initialized")
 end
 
 function MonsterService:SpawnMonster(monsterId, position, managedSpawn)
-    local definition =
-        MonsterConfig.Definitions[monsterId]
+    local definition = MobTuning:GetDefinition(monsterId)
 
     if not definition then
-        warn("[Lumia] Unknown monster: " .. tostring(monsterId))
+        warn("[Lumia - Monster Service] Unknown monster: " .. tostring(monsterId))
         return nil
     end
 
     local model = CreatureFactory.Create(monsterId, definition)
 
     if not model then
-        warn("[Lumia] Could not spawn: " .. tostring(monsterId))
+        warn("[Lumia - Monster Service] Could not spawn: " .. tostring(monsterId))
         return nil
     end
 
@@ -95,30 +138,24 @@ function MonsterService:SpawnMonster(monsterId, position, managedSpawn)
 
     model.Parent = folder
     model:PivotTo(CFrame.new(position))
+    spawnOrigins[model] = position
 
     pcall(function()
         root:SetNetworkOwner(nil)
     end)
 
-    print("[Lumia] Monster spawned: " .. model.Name)
+    print("[Lumia - Monster Service] Monster spawned: " .. model.Name)
 
     humanoid.Died:Connect(function()
-        print("[Lumia] Monster defeated: " .. model.Name)
-
-        -- Rewards intentionally disabled until the existing
-        -- sword system provides verified server-side attribution.
-
-        task.delay(3, function()
-            if model.Parent then
-                model:Destroy()
-            end
-        end)
-
-        task.delay(definition.RespawnDelay, function()
-            if started and not model:GetAttribute("ManagedSpawn") then
-                self:SpawnMonster(monsterId, position)
-            end
-        end)
+        if model:GetAttribute("LumiaDead") then return end
+        model:SetAttribute("LumiaDead", true)
+        print("[Lumia - Monster Service] Monster defeated: " .. model.Name)
+        local success, err = pcall(MonsterDeathPresentation.Apply, model, monsterId)
+        if not success then warn("[Lumia - Monster Service] Corpse pose failed: " .. tostring(err)) end
+        -- LootService listens to Died and owns rolls/ownership. It may call
+        -- LootCompleted later; then the 20-second cleanup is superseded.
+        LifecycleEvents.Died:Fire(model, monsterId)
+        scheduleRemoval(self, model, monsterId, false)
     end)
 
     task.spawn(function()
@@ -135,7 +172,7 @@ function MonsterService:Start()
 
     started = true
 
-    print("[Lumia] MonsterService started")
+    print("[Lumia - Monster Service] MonsterService started")
 end
 
 return MonsterService

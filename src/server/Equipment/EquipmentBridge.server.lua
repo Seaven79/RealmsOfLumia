@@ -70,7 +70,7 @@ local function invoke(player, action, ...)
         return EquipmentService:Unequip(player, arguments[1], arguments[2], arguments[3])
     end)
     if not success then
-        warn("[Lumia] Equipment request failed: " .. tostring(ok))
+        warn("[Lumia - Equipment Bridge] Equipment request failed: " .. tostring(ok))
         return { Ok = false, Error = "Equipment unavailable" }
     end
     if not ok then return { Ok = false, Error = tostring(info) } end
@@ -92,4 +92,4 @@ end
 Players.PlayerRemoving:Connect(function(player)
     lastRequest[player] = nil
 end)
-print("[Lumia] EquipmentBridge ready")
+print("[Lumia - Equipment Bridge] EquipmentBridge ready")

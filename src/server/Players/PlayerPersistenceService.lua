@@ -36,7 +36,7 @@ assert(
 local STORE_NAME = "RealmsOfLumia_Profiles_"
     .. tostring(EXPERIENCE_ID)
 
-print("[Lumia] Automatic DataStore selected: " .. STORE_NAME)
+print("[Lumia - Player Persistence Service] Automatic DataStore selected: " .. STORE_NAME)
 -- Persistence configuration restored from original backup.
 local KEY_PREFIX = "Player_"
 local AUTOSAVE_INTERVAL = 180
@@ -80,7 +80,7 @@ local function retry(operation)
         lastError = tostring(result)
 
         warn(
-            "[Lumia] DataStore attempt "
+            "[Lumia - Player Persistence Service] DataStore attempt "
             .. attempt
             .. " failed: "
             .. lastError
@@ -135,11 +135,11 @@ local function ownedByOther(record)
 end
 
 function Persistence:Init()
-    print("[Lumia] Persistence initialized: " .. STORE_NAME)
+    print("[Lumia - Player Persistence Service] Persistence initialized: " .. STORE_NAME)
 end
 
 function Persistence:Start()
-    print("[Lumia] Persistence service ready")
+    print("[Lumia - Player Persistence Service] Persistence service ready")
 end
 
 function Persistence:Load(userId)
@@ -230,7 +230,7 @@ function Persistence:Load(userId)
 
     sessions[userId] = state
 
-    print("[Lumia] Profile loaded: " .. userId)
+    print("[Lumia - Player Persistence Service] Profile loaded: " .. userId)
 
     task.spawn(function()
         while sessions[userId] == state
@@ -254,7 +254,7 @@ function Persistence:Load(userId)
 
                 if not saved then
                     warn(
-                        "[Lumia] Autosave failed for "
+                        "[Lumia - Player Persistence Service] Autosave failed for "
                         .. userId
                         .. ": "
                         .. tostring(saveReason)
@@ -378,7 +378,7 @@ function Persistence:Save(userId, release)
         state.Lost = true
 
         warn(
-            "[Lumia] CRITICAL: Stored profile invalid for "
+            "[Lumia - Player Persistence Service] CRITICAL: Stored profile invalid for "
             .. userId
         )
 
@@ -400,7 +400,7 @@ function Persistence:Save(userId, release)
         state.Lost = true
 
         warn(
-            "[Lumia] CRITICAL: Persistence ownership lost for "
+            "[Lumia - Player Persistence Service] CRITICAL: Persistence ownership lost for "
             .. userId
         )
 
@@ -423,11 +423,11 @@ function Persistence:Save(userId, release)
         sessions[userId] = nil
 
         print(
-            "[Lumia] Profile saved and lock released: "
+            "[Lumia - Player Persistence Service] Profile saved and lock released: "
             .. userId
         )
     else
-        print("[Lumia] Profile autosaved: " .. userId)
+        print("[Lumia - Player Persistence Service] Profile autosaved: " .. userId)
     end
 
     return true
@@ -512,7 +512,7 @@ function Persistence:Shutdown()
                 end
 
                 warn(
-                    "[Lumia] Shutdown release attempt "
+                    "[Lumia - Player Persistence Service] Shutdown release attempt "
                     .. attempt
                     .. " failed for "
                     .. userId
@@ -531,7 +531,7 @@ function Persistence:Shutdown()
 
             if not saved then
                 warn(
-                    "[Lumia] CRITICAL: Shutdown could not "
+                    "[Lumia - Player Persistence Service] CRITICAL: Shutdown could not "
                     .. "confirm profile save for "
                     .. userId
                 )
@@ -549,7 +549,7 @@ function Persistence:Shutdown()
 
     if remaining > 0 then
         warn(
-            "[Lumia] Shutdown has unfinished saves: "
+            "[Lumia - Player Persistence Service] Shutdown has unfinished saves: "
             .. remaining
         )
     end

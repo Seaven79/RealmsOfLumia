@@ -1,5 +1,14 @@
 local ItemIcons = {}
 
+-- Self-contained pictograms for the four poor wolf drops. These use Roblox
+-- text glyphs, so they work without uploading third-party image assets.
+ItemIcons.ItemSymbols = {
+    WolfTornFur = "≋",     -- tuft of torn fur
+    WolfBrokenFang = "▼", -- chipped fang
+    WolfMattedHide = "▤", -- bundled hide
+    WolfDullClaw = "❯",   -- blunt claw
+}
+
 -- Default category images
 ItemIcons.DefaultImages = {
     Weapon = "rbxassetid://84219802960571",
@@ -25,6 +34,10 @@ function ItemIcons.Resolve(item)
     if type(item) ~= "table" then
         return nil, ItemIcons.Default.Symbol
     end
+
+    -- Specific poor-material icon before generic category fallback.
+    local specific = ItemIcons.ItemSymbols[item.ItemId]
+    if specific then return nil, specific end
 
     -- Priority 1: Unique item image
     if type(item.IconId) == "string" and item.IconId ~= "" then

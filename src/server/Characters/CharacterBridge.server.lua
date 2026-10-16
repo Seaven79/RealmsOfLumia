@@ -10,6 +10,7 @@ local PlayerDataService = require(services:WaitForChild("Players"):WaitForChild(
 local shared = ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local ItemDefinitions = require(shared:WaitForChild("Items"):WaitForChild("ItemDefinitions"))
 local ProgressionConfig = require(shared:WaitForChild("Progression"):WaitForChild("ProgressionConfig"))
+local BalanceService = require(services:WaitForChild("Admin"):WaitForChild("BalanceService"))
 
 local lumia = ReplicatedStorage:WaitForChild("Lumia")
 local network = lumia:FindFirstChild("CharacterNetwork")
@@ -106,7 +107,7 @@ request.OnServerInvoke = function(player)
         Class = character.Class, -- nil today: class selection is not implemented.
         Level = level,
         Experience = character.Experience,
-        RequiredXP = ProgressionConfig.GetRequiredXP(level),
+        RequiredXP = BalanceService:GetRequiredXP(level),
         MaxLevel = ProgressionConfig.MAX_LEVEL,
         Gold = character.Gold,
         Stats = {
@@ -123,4 +124,4 @@ Players.PlayerRemoving:Connect(function(player)
     lastRequest[player] = nil
 end)
 
-print("[Lumia] CharacterBridge ready - read-only GetCharacter")
+print("[Lumia - Character Bridge] CharacterBridge ready - read-only GetCharacter")

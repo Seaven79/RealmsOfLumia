@@ -5,7 +5,7 @@ local PlayerSessionService = {}
 local sessions = {}
 
 function PlayerSessionService:Init()
-    print("[Lumia] PlayerSessionService initialized")
+    print("[Lumia - Player Session Service] PlayerSessionService initialized")
 end
 
 function PlayerSessionService:Start()
@@ -21,7 +21,7 @@ function PlayerSessionService:Start()
         self:OnPlayerJoined(player)
     end
 
-    print("[Lumia] PlayerSessionService listening for players")
+    print("[Lumia - Player Session Service] PlayerSessionService listening for players")
 end
 
 function PlayerSessionService:OnPlayerJoined(player)
@@ -35,7 +35,7 @@ function PlayerSessionService:OnPlayerJoined(player)
         State = "Active"
     }
 
-    print("[Lumia] Player joined: " .. player.Name)
+    print("[Lumia - Player Session Service] Player joined: " .. player.Name)
 end
 
 function PlayerSessionService:OnPlayerLeaving(player)
@@ -47,7 +47,7 @@ function PlayerSessionService:OnPlayerLeaving(player)
 
     session.State = "Leaving"
 
-    print("[Lumia] Player leaving: " .. player.Name)
+    print("[Lumia - Player Session Service] Player leaving: " .. player.Name)
 
     sessions[player.UserId] = nil
 end

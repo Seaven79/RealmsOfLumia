@@ -95,7 +95,7 @@ function EquipmentClient.GetBagView()
     end
     return {
         Items = items, Bags = base.Bags,
-        ViewMode = base.ViewMode, SelectedBagId = base.SelectedBagId,
+        ViewMode = base.ViewMode, SelectedBagId = base.SelectedBagId, Currency=base.Currency,
     }
 end
 function EquipmentClient.GetEquipmentView()
@@ -148,7 +148,7 @@ local function send(action)
         bagChanged:Fire()
         equipmentChanged:Fire() -- Confirm or undo the predicted local move.
         local ms = math.floor((os.clock() - startedAt) * 1000 + 0.5)
-        print("[Lumia] " .. action.Kind .. " server reply " .. ms .. "ms")
+        print("[Lumia - Equipment Client] " .. action.Kind .. " server reply " .. ms .. "ms")
         if not accepted or not snap or not hasEquipment then
             needsRefresh:Fire()
         end

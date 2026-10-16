@@ -173,7 +173,7 @@ end)
 DragDrop.Result:Connect(function(ok, message, sourceKind)
     if sourceKind ~= "Equipment" or not window.Visible then return end
     if not ok then
-        warn("[Lumia] Drop rejected: " .. tostring(message))
+        warn("[Lumia - Lumia Character] Drop rejected: " .. tostring(message))
         characterDetails.Text = tostring(message)
         task.delay(2.5, function()
             if window.Visible then task.spawn(refresh) end
@@ -254,6 +254,9 @@ local function toggle()
 end
 
 close.MouseButton1Click:Connect(toggle)
+-- V18 micro menu uses the character sheet's normal refresh/toggle path.
+local MenuBus = require(uiModules:WaitForChild("LumiaMicroMenuBus"))
+MenuBus.Register("Character", toggle)
 UserInputService.InputBegan:Connect(function(input, processed)
     if processed or UserInputService:GetFocusedTextBox() then return end
     if input.KeyCode == Enum.KeyCode.C then
@@ -270,4 +273,4 @@ task.spawn(function()
     end
 end)
 
-print("[Lumia] Character Sheet ready - Press C")
+print("[Lumia - Lumia Character] Character Sheet ready - Press C")

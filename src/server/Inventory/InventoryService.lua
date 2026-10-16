@@ -84,7 +84,7 @@ local function ensureLayout(inventory)
             -- It is not presented until there is enough capacity to place it.
             record.BagId = nil
             record.BagSlot = nil
-            warn("[Lumia] Inventory over capacity: legacy record preserved")
+            warn("[Lumia - Inventory Service] Inventory over capacity: legacy record preserved")
         end
     end
 end
@@ -132,12 +132,12 @@ function InventoryService:Configure(service)
 end
 function InventoryService:Init()
     assert(dataService, "InventoryService was not configured")
-    print("[Lumia] InventoryService initialized")
+    print("[Lumia - Inventory Service] InventoryService initialized")
 end
 function InventoryService:Start()
     if started then return end
     started = true
-    print("[Lumia] InventoryService started")
+    print("[Lumia - Inventory Service] InventoryService started")
 end
 
 function InventoryService:GetBagItems(player)
@@ -204,6 +204,34 @@ function InventoryService:GetQuantity(player, itemId)
     end
     return total
 end
+-- Only trusted server modules call this. Removes an exact stack amount without yielding.
+-- Used for quest turn-ins, consumables and merchant selling.
+function InventoryService:RemoveQuantity(player, itemId, quantity)
+    if not validQuantity(quantity) or type(itemId)~="string" then
+        return false, "Invalid item or quantity"
+    end
+    local inventory=getInventory(player)
+    if not inventory then return false,"Inventory unavailable" end
+    local owned=0
+    for _, record in ipairs(inventory.Items) do
+        if record.ItemId==itemId and record.BagId~=nil and validQuantity(record.Quantity) then
+            owned += record.Quantity
+        end
+    end
+    if owned<quantity then return false,"Not enough items" end
+    local remaining=quantity
+    for index=#inventory.Items,1,-1 do
+        local rec=inventory.Items[index]
+        if rec.ItemId==itemId and rec.BagId~=nil and remaining>0 then
+            local removed=math.min(rec.Quantity,remaining)
+            rec.Quantity -= removed
+            remaining -= removed
+            if rec.Quantity==0 then table.remove(inventory.Items,index) end
+        end
+    end
+    return true,quantity
+end
+
 function InventoryService:HasItem(player, itemId)
     return self:GetQuantity(player, itemId) > 0
 end
@@ -306,8 +334,78 @@ function InventoryService:RemoveItem(player, instanceId)
     return false, "Item not found"
 end
 
+-- Permanent destroy from a bag slot. Does NOT touch equipped items.
+-- Expected item identifiers prevent deleting a different item after a drag.
+function InventoryService:DiscardBagItem(player, bagId, bagSlot, expectedItemId, expectedInstanceId, confirmWeapon)
+    local inventory = getInventory(player)
+    if not inventory then return false, "Inventory unavailable" end
+    if not validSlot(bagSlot, BagConfig.GetCapacity(inventory.Bags, bagId)) then
+        return false, "Invalid bag slot"
+    end
+    local record = getRecordAt(inventory, bagId, bagSlot)
+    if not record or record.ItemId ~= expectedItemId
+        or record.InstanceId ~= expectedInstanceId then
+        return false, "Item changed; please try again"
+    end
+    local definition = ItemDefinitions.Get(record.ItemId)
+    if not definition then return false, "Item definition missing" end
+    if definition.Type=="Quest" or definition.QuestItem then
+        return false, "Quest items cannot be discarded"
+    end
+    if definition.Type == "Weapon" and confirmWeapon ~= true then
+        return false, "Weapon destruction requires confirmation"
+    end
+    for _, instanceId in pairs(inventory.Equipment) do
+        if record.InstanceId ~= nil and instanceId == record.InstanceId then
+            return false, "Unequip this item first"
+        end
+    end
+    for index, item in ipairs(inventory.Items) do
+        if item == record then
+            table.remove(inventory.Items, index)
+            return true, "Destroyed " .. tostring(definition.DisplayName)
+        end
+    end
+    return false, "Item not found"
+end
+
 function InventoryService:PrepareBagLayout(player)
     return getInventory(player) ~= nil
+end
+
+-- Remove a specified quantity from exactly one validated bag slot (merchant/crafting use).
+-- No yielding or DataStore access; the calling server service owns transaction pricing.
+function InventoryService:RemoveBagQuantityAt(player,bagId,bagSlot,expectedItemId,expectedInstanceId,quantity)
+    if type(quantity)~="number" or quantity%1~=0 or quantity<1 then
+        return false,"Invalid quantity"
+    end
+    local inventory=getInventory(player)
+    if not inventory then return false,"Inventory unavailable" end
+    if not validSlot(bagSlot,BagConfig.GetCapacity(inventory.Bags,bagId)) then
+        return false,"Invalid bag slot"
+    end
+    local record=getRecordAt(inventory,bagId,bagSlot)
+    if not record or record.ItemId~=expectedItemId or record.InstanceId~=expectedInstanceId then
+        return false,"Inventory changed"
+    end
+    if type(record.Quantity)~="number" or record.Quantity<quantity then
+        return false,"Not enough items"
+    end
+    for _,id in pairs(inventory.Equipment) do
+        if record.InstanceId~=nil and id==record.InstanceId then
+            return false,"Cannot sell equipped items"
+        end
+    end
+    local removed=table.clone(record)
+    removed.Quantity=quantity
+    if record.Quantity==quantity then
+        for i,entry in ipairs(inventory.Items) do
+            if entry==record then table.remove(inventory.Items,i) break end
+        end
+    else
+        record.Quantity-=quantity
+    end
+    return true,removed
 end
 
 return InventoryService

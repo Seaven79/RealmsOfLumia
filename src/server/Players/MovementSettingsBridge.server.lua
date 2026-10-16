@@ -67,7 +67,7 @@ remote.OnServerInvoke = function(player, operation, action, keyName)
     end
 
     settings.Keybinds = current
-    print("[Lumia] Saved movement keybind preferences in profile: " .. player.Name)
+    print("[Lumia - Movement Settings Bridge] Saved movement keybind preferences in profile: " .. player.Name)
     return {Ok = true, Bindings = Config.CopyOrDefault(settings.Keybinds)}
 end
 
@@ -75,4 +75,4 @@ Players.PlayerRemoving:Connect(function(player)
     lastWrite[player] = nil
 end)
 
-print("[Lumia] Movement settings bridge ready")
+print("[Lumia - Movement Settings Bridge] Movement settings bridge ready")

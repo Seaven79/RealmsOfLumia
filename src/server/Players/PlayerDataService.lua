@@ -7,6 +7,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local shared = ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local Validator = require(shared:WaitForChild("Players"):WaitForChild("PlayerProfileValidator"))
+local CharacterClassConfig = require(shared:WaitForChild("Players"):WaitForChild("CharacterClassConfig"))
 local Persistence = require(script.Parent:WaitForChild("PlayerPersistenceService"))
 
 local PlayerDataService = {}
@@ -16,7 +17,7 @@ local loading = {}
 local started = false
 
 function PlayerDataService:Init()
-    print("[Lumia] PlayerDataService initialized")
+    print("[Lumia - Player Data Service] PlayerDataService initialized")
 end
 
 function PlayerDataService:Start()
@@ -46,7 +47,7 @@ function PlayerDataService:Start()
         Persistence:Shutdown()
     end)
 
-    print("[Lumia] PlayerDataService listening for players")
+    print("[Lumia - Player Data Service] PlayerDataService listening for players")
 end
 
 function PlayerDataService:OnPlayerJoined(player)
@@ -64,7 +65,7 @@ function PlayerDataService:OnPlayerJoined(player)
 
     if not profile then
         warn(
-            "[Lumia] Profile loading denied for "
+            "[Lumia - Player Data Service] Profile loading denied for "
             .. player.Name
             .. ": "
             .. tostring(reason)
@@ -85,7 +86,7 @@ function PlayerDataService:OnPlayerJoined(player)
 
         if not saved then
             warn(
-                "[Lumia] Could not release disconnected player "
+                "[Lumia - Player Data Service] Could not release disconnected player "
                 .. userId
                 .. ": "
                 .. tostring(saveReason)
@@ -96,12 +97,15 @@ function PlayerDataService:OnPlayerJoined(player)
     end
 
     profile.Character.Name = player.Name
+    -- Upgrade classless legacy profiles in memory; existing level, XP and
+    -- inventory remain unchanged. The normal save persists this class.
+    profile.Character.Class = CharacterClassConfig.Resolve(profile.Character.Class)
 
     local valid, validationReason = Validator.Validate(profile)
 
     if not valid then
         warn(
-            "[Lumia] Loaded profile invalid: "
+            "[Lumia - Player Data Service] Loaded profile invalid: "
             .. tostring(validationReason)
         )
 
@@ -113,7 +117,7 @@ function PlayerDataService:OnPlayerJoined(player)
     profiles[userId] = profile
 
     print(
-        "[Lumia] Persistent profile ready: "
+        "[Lumia - Player Data Service] Persistent profile ready: "
         .. player.Name
         .. " | Level "
         .. profile.Character.Level
@@ -140,7 +144,7 @@ function PlayerDataService:OnPlayerLeaving(player)
         end
 
         warn(
-            "[Lumia] Player exit save attempt "
+            "[Lumia - Player Data Service] Player exit save attempt "
             .. attempt
             .. " failed for "
             .. player.Name
@@ -159,12 +163,12 @@ function PlayerDataService:OnPlayerLeaving(player)
 
     if saved then
         print(
-            "[Lumia] Player exit persistence confirmed: "
+            "[Lumia - Player Data Service] Player exit persistence confirmed: "
             .. player.Name
         )
     else
         warn(
-            "[Lumia] CRITICAL: Player exit save failed for "
+            "[Lumia - Player Data Service] CRITICAL: Player exit save failed for "
             .. player.Name
             .. ". Shutdown recovery may still be required. "
             .. tostring(reason)

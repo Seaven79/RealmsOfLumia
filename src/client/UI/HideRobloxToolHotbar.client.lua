@@ -17,7 +17,7 @@ local function hideHotbar()
         end
         task.wait(0.2)
     end
-    warn("[Lumia] Could not hide the Roblox Tool hotbar")
+    warn("[Lumia - Hide Roblox Tool Hotbar] Could not hide the Roblox Tool hotbar")
 end
 
 task.spawn(hideHotbar)
@@ -25,4 +25,4 @@ player.CharacterAdded:Connect(function()
     task.delay(0.5, hideHotbar)
 end)
 
-print("[Lumia] Roblox Tool hotbar hidden; Lumia inventory remains active")
+print("[Lumia - Hide Roblox Tool Hotbar] Roblox Tool hotbar hidden; Lumia inventory remains active")

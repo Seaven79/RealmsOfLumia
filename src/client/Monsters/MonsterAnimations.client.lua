@@ -240,4 +240,4 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
-print("[Lumia] Creature animations ready - Walk + Bite (client LOD)")
+print("[Lumia - Monster Animations] Creature animations ready - Walk + Bite (client LOD)")

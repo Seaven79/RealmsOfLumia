@@ -18,7 +18,7 @@ local ItemFactory = {}
 local function getModelsFolder()
     local assets = ServerStorage:FindFirstChild("LumiaAssets")
     if not assets then
-        warn("[Lumia] Missing LumiaAssets")
+        warn("[Lumia - Item Factory] Missing LumiaAssets")
         return nil
     end
 
@@ -29,14 +29,14 @@ function ItemFactory.Create(itemId)
     local definition = ItemDefinitions.Get(itemId)
 
     if not definition then
-        warn("[Lumia] Unknown item: " .. tostring(itemId))
+        warn("[Lumia - Item Factory] Unknown item: " .. tostring(itemId))
         return nil
     end
 
     local modelsFolder = getModelsFolder()
 
     if not modelsFolder then
-        warn("[Lumia] Item model folder not installed yet")
+        warn("[Lumia - Item Factory] Item model folder not installed yet")
         return nil
     end
 
@@ -46,14 +46,14 @@ function ItemFactory.Create(itemId)
 
     if not template then
         warn(
-            "[Lumia] Missing item model: "
+            "[Lumia - Item Factory] Missing item model: "
                 .. tostring(definition.ModelId)
         )
         return nil
     end
 
     if not template:IsA("Tool") then
-        warn("[Lumia] Item template must be a Tool")
+        warn("[Lumia - Item Factory] Item template must be a Tool")
         return nil
     end
 

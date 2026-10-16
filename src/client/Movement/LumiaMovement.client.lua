@@ -21,6 +21,7 @@ local remote = ReplicatedStorage:WaitForChild("Lumia")
 
 local ACTION = "Lumia_KeyboardMovement"
 local bindings = Config.CopyDefault()
+player:SetAttribute("LumiaInteractKey", bindings.Interact)
 local heldKeys = {}
 local profileReady = false
 local busy = false
@@ -50,7 +51,7 @@ local gui = make("ScreenGui", {
 local opener = make("TextButton", {
     Name = "OptionsButton",
     AnchorPoint = Vector2.new(1, 0),
-    Position = UDim2.new(1, -16, 0, 120),
+    Position = UDim2.new(1, -226, 0, 11), -- beside the top-right minimap; never overlaps quest tracker
     Size = UDim2.fromOffset(112, 36),
     BackgroundColor3 = Theme.Panel,
     BorderSizePixel = 0,
@@ -66,12 +67,12 @@ local panel = make("Frame", {
     Name = "MovementOptions",
     AnchorPoint = Vector2.new(0.5, 0.5),
     Position = UDim2.fromScale(0.5, 0.5),
-    Size = UDim2.new(1, -32, 0, 460),
+    Size = UDim2.new(1, -32, 0, 520),
     BackgroundColor3 = Theme.Background,
     BorderSizePixel = 0,
     Visible = false,
 }, gui)
-make("UISizeConstraint", {MaxSize = Vector2.new(520, 460), MinSize = Vector2.new(290, 460)}, panel)
+make("UISizeConstraint", {MaxSize = Vector2.new(520, 520), MinSize = Vector2.new(290, 520)}, panel)
 make("UICorner", {CornerRadius = UDim.new(0, 12)}, panel)
 make("UIStroke", {Color = Theme.Gold, Thickness = 1.3}, panel)
 
@@ -91,7 +92,7 @@ make("TextLabel", {
     Position = UDim2.fromOffset(20, 46),
     Size = UDim2.new(1, -40, 0, 23),
     Font = Enum.Font.GothamMedium,
-    Text = "OPTIONS  /  MOVEMENT KEYBINDS",
+    Text = "OPTIONS  /  MOVEMENT & INTERACTION",
     TextColor3 = Theme.Secondary,
     TextSize = 13,
     TextXAlignment = Enum.TextXAlignment.Left,
@@ -113,7 +114,7 @@ make("TextLabel", {
     BackgroundTransparency = 1,
     Position = UDim2.fromOffset(20, 83),
     Size = UDim2.new(1, -40, 0, 35),
-    Text = "Click a key to rebind it. Defaults: W / A / S / D.",
+    Text = "Choose a binding. Talk, examine and loot use Right Mouse by default.",
     Font = Enum.Font.Gotham,
     TextColor3 = Theme.White,
     TextSize = 13,
@@ -205,7 +206,7 @@ end
 local function redraw()
     for _, action in ipairs(Config.Order) do
         local button = rows[action]
-        button.Text = (capturing == action) and "PRESS KEY..." or bindings[action]
+        button.Text = (capturing == action) and "PRESS KEY..." or (bindings[action]=="MouseButton2" and "RIGHT MOUSE" or bindings[action])
         button.TextColor3 = capturing == action and Theme.Green or Theme.Gold
     end
 end
@@ -221,7 +222,7 @@ local function bindMovementKeys()
     for _, name in ipairs({"W", "A", "S", "D"}) do
         all[name] = true -- stop the default Roblox movement even after a rebind
     end
-    for _, action in ipairs(Config.Order) do
+    for _, action in ipairs(Config.MovementOrder) do
         all[bindings[action]] = true
     end
     local keyCodes = {}
@@ -252,6 +253,7 @@ local function setMenu(open)
         capturing = nil
     end
     clearHeld()
+    player:SetAttribute("LumiaOptionsOpen", open)
     redraw()
 end
 
@@ -261,6 +263,10 @@ end)
 close.Activated:Connect(function()
     setMenu(false)
 end)
+-- V18 micro menu replaces the redundant top-right Options button.
+opener.Visible = false
+local MenuBus = require(controllers:WaitForChild("UI"):WaitForChild("LumiaMicroMenuBus"))
+MenuBus.Register("Options", function() setMenu(not menuOpen) end)
 
 local function submit(operation, action, keyName)
     if busy or not profileReady then return end
@@ -273,6 +279,7 @@ local function submit(operation, action, keyName)
         busy = false
         if ok and type(result) == "table" and result.Ok then
             bindings = Config.CopyOrDefault(result.Bindings)
+            player:SetAttribute("LumiaInteractKey", bindings.Interact)
             bindMovementKeys()
             showStatus("Saved with your character profile.", false)
         else
@@ -308,9 +315,10 @@ reset.Activated:Connect(function()
 end)
 
 UserInputService.InputBegan:Connect(function(input, processed)
-    if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
     if UserInputService:GetFocusedTextBox() then return end
-    local name = input.KeyCode.Name
+    local isRightMouse = input.UserInputType == Enum.UserInputType.MouseButton2
+    if input.UserInputType ~= Enum.UserInputType.Keyboard and not (capturing == "Interact" and isRightMouse) then return end
+    local name = isRightMouse and "MouseButton2" or input.KeyCode.Name
 
     if capturing then
         if name == "Escape" then
@@ -319,7 +327,7 @@ UserInputService.InputBegan:Connect(function(input, processed)
             redraw()
             return
         end
-        if not Config.IsAllowed(name) then
+        if not Config.IsAllowed(name,capturing) then
             showStatus("That key is reserved or unsupported. Choose a letter or arrow.", true)
             return
         end
@@ -438,18 +446,19 @@ task.spawn(function()
         end)
         if ok and type(result) == "table" and result.Ok then
             bindings = Config.CopyOrDefault(result.Bindings)
+            player:SetAttribute("LumiaInteractKey", bindings.Interact)
             bindMovementKeys()
             profileReady = true
             showStatus("Keybinds loaded. Changes save with your character.", false)
             redraw()
-            print("[Lumia] Movement keybinds loaded: W/A/S/D by default; press F10")
+            print("[Lumia - Lumia Movement] Movement keybinds loaded: W/A/S/D by default; press F10")
             return
         end
         task.wait(1)
     end
     -- Keep default movement working even if server settings aren't ready.
     showStatus("Could not load keybinds. Movement defaults still work.", true)
-    warn("[Lumia] Movement options could not load player preferences")
+    warn("[Lumia - Lumia Movement] Movement options could not load player preferences")
 end)
 
-print("[Lumia] Keyboard movement controller ready (F10 for Options)")
+print("[Lumia - Lumia Movement] Keyboard movement controller ready (F10 for Options)")

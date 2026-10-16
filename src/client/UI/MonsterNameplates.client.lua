@@ -281,4 +281,4 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
-print("[Lumia] Classic creature nameplates V2 ready - above creatures, distance scaled")
+print("[Lumia - Monster Nameplates] Classic creature nameplates V2 ready - above creatures, distance scaled")

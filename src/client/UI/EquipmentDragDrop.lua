@@ -26,10 +26,12 @@ local resultEvent = Instance.new("BindableEvent")
 local startedEvent = Instance.new("BindableEvent")
 local windowsEvent = Instance.new("BindableEvent")
 local finishedEvent = Instance.new("BindableEvent")
+local deleteRequestEvent = Instance.new("BindableEvent")
 DragDrop.Result = resultEvent.Event -- (ok, message, sourceKind)
 DragDrop.Started = startedEvent.Event -- (sourceKind, sourceFrame)
 DragDrop.Finished = finishedEvent.Event -- (sourceKind, sourceFrame)
 DragDrop.WindowsChanged = windowsEvent.Event
+DragDrop.DeleteRequested = deleteRequestEvent.Event -- (item, bagSlotCoordinates)
 
 local gui = Instance.new("ScreenGui")
 gui.Name = "LumiaDragOverlay"
@@ -117,6 +119,10 @@ end
 
 local function validTarget(entry)
     if not pending or not entry or not isVisible(entry.frame) then return false end
+    if entry.kind == "External" then
+        local ok,accepted=pcall(entry.accept,pending.item,pending.slotKey)
+        return pending.kind == "Bag" and ok and accepted==true
+    end
     if pending.kind == "Bag" then
         if entry.kind == "Bag" then
             local from, to = pending.slotKey, entry.slotKey
@@ -145,6 +151,17 @@ local function findDropTarget(mouse)
     local hits = playerGui:GetGuiObjectsAtPosition(
         math.floor(mouse.X - inset.X), math.floor(mouse.Y - inset.Y)
     )
+    -- ScreenGui.IgnoreGuiInset=true for merchant and bag: absolute GUI bounds
+    -- avoid the built-in 36px top-bar mismatch when dropping into an external tray.
+    for _,entry in ipairs(sources) do
+        if entry.kind=="External" and validTarget(entry) then
+            local pos,size=entry.frame.AbsolutePosition,entry.frame.AbsoluteSize
+            if mouse.X>=pos.X and mouse.X<=pos.X+size.X
+                and mouse.Y>=pos.Y and mouse.Y<=pos.Y+size.Y then
+                return entry
+            end
+        end
+    end
     for _, hit in ipairs(hits) do
         for _, entry in ipairs(sources) do
             if validTarget(entry)
@@ -154,6 +171,37 @@ local function findDropTarget(mouse)
         end
     end
     return nil
+end
+
+-- Outside-window drop means the unobstructed WORLD view, not a blank
+-- region of another open UI panel. Never destroy by dropping over any UI.
+local function isOverVisibleUi(mouse)
+    local inset = GuiService:GetGuiInset()
+    local hits = playerGui:GetGuiObjectsAtPosition(
+        math.floor(mouse.X - inset.X), math.floor(mouse.Y - inset.Y)
+    )
+    for _, hit in ipairs(hits) do
+        if not hit:IsDescendantOf(gui) then
+            local node = hit
+            while node and node ~= playerGui do
+                if node:IsA("GuiObject") and isVisible(node) then
+                    local name = node.Name:lower()
+                    if name == "window" or name == "characterwindow"
+                        or name == "lootwindow" or name == "panel"
+                        or name == "backdrop" or name:find("dialog", 1, true)
+                        or node:IsA("TextButton") or node:IsA("ImageButton")
+                        or node:IsA("TextBox") or node:IsA("ScrollingFrame")
+                        or (node.BackgroundTransparency < 0.92
+                            and node.AbsoluteSize.X > 16
+                            and node.AbsoluteSize.Y > 16) then
+                        return true
+                    end
+                end
+                node = node.Parent
+            end
+        end
+    end
+    return false
 end
 
 local function fillGhost(item)
@@ -203,11 +251,26 @@ function DragDrop.RegisterSlot(frame, kind, getItem, slotKey)
     end)
 end
 
+-- Public interface for merchant sell trays, future crafting benches and mail slots.
+-- Never grants items or currency: onDrop must invoke a validated server remote.
+function DragDrop.RegisterExternalTarget(frame,accept,onDrop)
+    assert(frame and frame:IsA("GuiObject"),"Expected a GuiObject drop target")
+    assert(type(accept)=="function" and type(onDrop)=="function","External target requires callbacks")
+    local entry={frame=frame,kind="External",accept=accept,onDrop=onDrop}
+    table.insert(sources,entry)
+    return function()
+        for i,e in ipairs(sources) do
+            if e==entry then table.remove(sources,i) break end
+        end
+    end
+end
+
 UserInputService.InputChanged:Connect(function(input)
     if not pending or input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
     local mouse = UserInputService:GetMouseLocation()
     if not dragging and (mouse - pending.start).Magnitude >= threshold then
         dragging = true
+        player:SetAttribute("LumiaDraggingItem", true)
         fillGhost(pending.item)
         ghost.Visible = true
         startedEvent:Fire(pending.kind, pending.frame)
@@ -231,6 +294,7 @@ UserInputService.InputEnded:Connect(function(input)
     local target = wasDragging and findDropTarget(UserInputService:GetMouseLocation()) or nil
     pending = nil
     dragging = false
+    player:SetAttribute("LumiaDraggingItem", false)
     ghost.Visible = false
     setHighlight(nil)
     if wasDragging then
@@ -238,13 +302,30 @@ UserInputService.InputEnded:Connect(function(input)
     end
     if not wasDragging then return end -- ordinary click: no equipment action
     if not target then
+        -- Bag item released over the game WORLD: offer permanent deletion.
+        -- Never do this for an equipped item or over any visible UI.
+        if held.kind == "Bag" and not isOverVisibleUi(UserInputService:GetMouseLocation()) then
+            deleteRequestEvent:Fire(held.item, held.slotKey)
+            return -- confirmation UI + server checks still required.
+        end
         local instruction = held.kind == "Bag"
-            and "Drop on a bag slot or compatible equipment slot"
+            and "Drop outside UI to destroy, or onto a valid slot"
             or "Drop on an empty bag slot (B)"
         resultEvent:Fire(false, instruction, held.kind)
         return
     end
     if busy then return end
+    if target.kind=="External" then
+        busy=true
+        task.spawn(function()
+            local ok,accepted,message=pcall(target.onDrop,held.item,held.slotKey)
+            busy=false
+            resultEvent:Fire(ok and accepted==true,
+                ok and tostring(message or (accepted and "Transaction complete" or "Rejected"))
+                    or "Shop interaction failed",held.kind)
+        end)
+        return
+    end
     busy = true
     -- Start a local visual prediction SYNCHRONOUSLY on mouse release.
     -- EquipmentClient sends the actual request asynchronously; the server
@@ -271,5 +352,5 @@ EquipmentClient.Completed:Connect(function(ok, message, sourceKind)
     resultEvent:Fire(ok, message, sourceKind)
 end)
 
-print("[Lumia] Drag and drop controller ready - instant visual prediction")
+print("[Lumia - Equipment Drag Drop] Drag and drop controller ready - instant visual prediction")
 return DragDrop
