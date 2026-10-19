@@ -12,6 +12,7 @@ local RunService = game:GetService("RunService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local LumiaModalState = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaModalState"))
 local controllers = script.Parent.Parent
 local Theme = require(controllers:WaitForChild("UI"):WaitForChild("CharacterTheme"))
 local Config = require(ReplicatedStorage:WaitForChild("Lumia")
@@ -249,7 +250,10 @@ bindMovementKeys()
 local function setMenu(open)
     menuOpen = open
     panel.Visible = open
-    if not open then
+    if open then
+        LumiaModalState:Register("OptionsPanel")
+    else
+        LumiaModalState:Unregister("OptionsPanel")
         capturing = nil
     end
     clearHeld()

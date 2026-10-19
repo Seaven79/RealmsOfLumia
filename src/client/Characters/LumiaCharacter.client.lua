@@ -7,6 +7,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
 local uiModules = script.Parent.Parent:WaitForChild("UI")
+local LumiaModalState = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaModalState"))
 local Theme = require(uiModules:WaitForChild("CharacterTheme"))
 local EquipmentSlots = require(uiModules:WaitForChild("EquipmentSlots"))
 local StatDisplay = require(uiModules:WaitForChild("StatDisplay"))
@@ -249,7 +250,10 @@ local function toggle()
     tooltip:Hide()
     DragDrop.NotifyWindowsChanged()
     if window.Visible then
+        LumiaModalState:Register("CharacterWindow")
         task.spawn(refresh)
+    else
+        LumiaModalState:Unregister("CharacterWindow")
     end
 end
 

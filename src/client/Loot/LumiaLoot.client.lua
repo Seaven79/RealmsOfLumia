@@ -12,6 +12,7 @@ local openRemote = net:WaitForChild("OpenLoot")
 local action = net:WaitForChild("LootAction")
 local requestOpen = net:WaitForChild("RequestOpenLoot")
 local components = script.Parent.Parent:WaitForChild("UI")
+local LumiaModalState = require(components:WaitForChild("LumiaModalState"))
 local EquipmentClient = require(components:WaitForChild("EquipmentClient"))
 local ItemPreview = require(components:WaitForChild("LumiaItemPreview"))
 local ItemIcons = require(lumia:WaitForChild("Shared"):WaitForChild("Items"):WaitForChild("ItemIcons"))
@@ -99,6 +100,7 @@ end
 local function closeWindow()
     currentToken = nil
     frame.Visible = false
+    LumiaModalState:Unregister("LootWindow")
 end
 close.MouseButton1Click:Connect(closeWindow)
 -- Hover is a CLIENT convenience only; server validates every click.
@@ -302,6 +304,7 @@ openRemote.OnClientEvent:Connect(function(token)
     if type(token) ~= "string" then return end
     currentToken = token
     frame.Visible = true
+    LumiaModalState:Register("LootWindow")
     status.Text = "Checking corpse..."
     local ok, response = pcall(function()
         return action:InvokeServer("Inspect", token)

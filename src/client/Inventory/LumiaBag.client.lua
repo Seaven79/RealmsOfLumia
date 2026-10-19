@@ -14,6 +14,7 @@ local Currency = require(lumia:WaitForChild("Shared"):WaitForChild("Commerce"):W
 local Coins=require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaCoinUI"))
 local ShopBridge=require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("MerchantUIBridge"))
 local components = script.Parent.Parent:WaitForChild("UI")
+local LumiaModalState = require(components:WaitForChild("LumiaModalState"))
 local ItemTooltip = require(components:WaitForChild("ItemTooltip"))
 local BagIcon = require(components:WaitForChild("BagIcon"))
 local EquipmentClient = require(components:WaitForChild("EquipmentClient"))
@@ -442,6 +443,7 @@ ShopBridge.Changed:Connect(function(open,merchantFrame)
         preTradePosition=window.Position
         shopFrame=merchantFrame
         window.Visible=true
+        LumiaModalState:Register("BagWindow")
         positionBesideShop()
         task.spawn(function()
             local ok,snapshot=pcall(function()return request:InvokeServer()end)
@@ -562,8 +564,11 @@ local function toggle()
     hoveredSlot = nil
     DragDrop.NotifyWindowsChanged()
     if window.Visible then
+        LumiaModalState:Register("BagWindow")
         task.spawn(refresh)
         updateView()
+    else
+        LumiaModalState:Unregister("BagWindow")
     end
 end
 close.MouseButton1Click:Connect(toggle)

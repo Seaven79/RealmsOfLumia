@@ -337,11 +337,13 @@ end)
 local function toggleWindow()
     if dialogueWindow.Visible then return end
     window.Visible=not window.Visible
+    if window.Visible then LumiaModalState:Register("QuestJournal") else LumiaModalState:Unregister("QuestJournal") end
     if window.Visible then task.spawn(refresh) end
 end
 close.MouseButton1Click:Connect(function() window.Visible=false end)
 -- V18 micro menu opens the full quest journal, not the compact tracker.
 local MenuBus = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaMicroMenuBus"))
+local LumiaModalState = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaModalState"))
 MenuBus.Register("Quests", toggleWindow)
 UserInputService.InputBegan:Connect(function(input,processed)
     if not processed and input.KeyCode==Enum.KeyCode.J and not UserInputService:GetFocusedTextBox() then

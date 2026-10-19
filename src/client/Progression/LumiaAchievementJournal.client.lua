@@ -7,6 +7,7 @@ local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local LumiaModalState = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaModalState"))
 local shared = ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local Config = require(shared:WaitForChild("Progression"):WaitForChild("AchievementConfig"))
 local network = ReplicatedStorage.Lumia:WaitForChild("AchievementNetwork", 30)
@@ -237,7 +238,10 @@ local function setOpen(open)
     shown = open
     gui.Enabled = open
     if open then
+        LumiaModalState:Register("AchievementJournal")
         refresh()
+    else
+        LumiaModalState:Unregister("AchievementJournal")
     end
 end
 close.Activated:Connect(function() setOpen(false) end)

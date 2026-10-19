@@ -23,6 +23,7 @@ local gui=Instance.new("ScreenGui")
 gui.Name="LumiaMerchantUI";gui.ResetOnSpawn=false
 gui.IgnoreGuiInset=true;gui.DisplayOrder=70
 local playerGui=player:WaitForChild("PlayerGui")
+local LumiaModalState = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaModalState"))
 local old=playerGui:FindFirstChild(gui.Name)
 if old then old:Destroy() end
 gui.Parent=playerGui
@@ -176,6 +177,7 @@ local function closeMerchant()
     tooltip:Hide()
     Bridge.Close(frame)
     frame.Visible=false
+    LumiaModalState:Unregister("MerchantWindow")
 end
 close.MouseButton1Click:Connect(closeMerchant)
 DragDrop.RegisterExternalTarget(sellTray,function(item)
@@ -204,6 +206,7 @@ local function openMerchant()
     end
     layoutShop()
     frame.Visible=true
+    LumiaModalState:Register("MerchantWindow")
     render(reply)
     updateInventory(reply)
     Bridge.Open(frame)
