@@ -14,3 +14,13 @@ sourcemap.json
 *.backup-*
 *.backup-step*
 .step*-backup-*/
+
+# Lumia updater backups
+.bak/
+
+# Old installer backup folders
+.lumia-backups/
+.lumia_backups/
+LumiaBackups/
+LumiaPatchBackup-*/
+_LumiaBackups/

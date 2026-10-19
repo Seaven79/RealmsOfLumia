@@ -1,0 +1,277 @@
+# Realms of Lumia — Scalability Audit & Fix Plan
+
+> Living document. Update as stages complete. A fresh chat can read this file and continue.
+>
+> **Last updated:** 2026-10-18
+> **Target:** 20 players/server, headroom for 40
+> **Project root:** `C:\RobloxDevelopment\RealmsOfLumia`
+> **Rojo binary:** `C:\Rojo\rojo.exe`
+> **Updater scripts:** `C:\Users\<user>\Downloads\*.ps1`, run via `& "$HOME\Downloads\<file>.ps1"`
+> **Backups:** `<project root>\.bak\` (gitignored) + git commits per stage
+
+---
+
+## Overall verdict
+
+The codebase is **production-grade** for a pre-alpha. Server authority is airtight, DataStore session locking is correct, remotes are validated and throttled, the service registry is dependency-resolved and tested, and the client UI is well-structured. The work ahead is **surgical performance work**, not a rewrite.
+
+Remaining problems are concentrated in **hot loops** (AI, pathfinding, player-position scans, item-definition lookups) that will bite as player count and mob count grow.
+
+---
+
+## Stages
+
+| Stage | Scope | Risk | Status |
+|---|---|---|---|
+| 0 | Preflight checks (no `src/` writes) | none | ✅ script written, awaiting run |
+| 1 | Low-risk wins (7 fixes) | very low | ⏳ planned |
+| 2 | `PlayerPositions` shared module + rewire 8 call sites | low | ⏳ planned |
+| 3 | Central AI ticker + global pathfinding budget + `EnsureLoaded` event-driven | medium | ⏳ planned |
+| 4 | Spatial hash for blockers, spawn-safe scope, player-load timeout, polish | low–medium | ⏳ planned |
+| 5 | StreamingEnabled migration doc + architecture diagram | none | ⏳ planned |
+
+**Workflow per stage:** commit → run script → Rojo sync → Studio test → commit if good / `git reset --hard` if bad.
+
+---
+
+## Confirmed decisions
+
+- **Backups:** both `.bak` timestamped copies + git commits
+- **AI / pathfinding rewrites:** hybrid — direct replacement, but old file kept as `.legacy.bak` for A/B testing
+- **StreamingEnabled:** manual Studio flip + documented checklist (not scripted)
+- **Target:** 20 players/server hard requirement, must survive 40 for spikes
+
+---
+
+## Full findings list
+
+### P0 — Ship first
+
+**F1. `ItemDefinitions.Get` merges GearCatalog on every call**  
+File: `src/shared/Items/ItemDefinitions.lua`  
+The function has a `require()` + `for` loop over ~40 items inside the lookup. Called from `CombatStats.Get`, `SwordCombatService:_onAttack`, `LootService`, `EquipmentService`, `BagSnapshot.PublicItem`, `MerchantTradeService`, `AchievementService`, `ActionBarStorageService`, and every client tooltip. Hot path in combat.  
+**Fix:** move merge to module load (already done at the bottom) and make `Get` a pure table lookup. Stage 1.
+
+**F2. `PlayerProfileValidator.Validate` doesn't validate item records**  
+File: `src/shared/Players/PlayerProfileValidator.lua`  
+Checks that `profile.Inventory.Items` is a table, but not that each record has valid `ItemId`, `Quantity`, `BagId`/`BagSlot`, `InstanceId`. A corrupt record persists forever.  
+**Fix:** add bounded item-record validation (~30 lines). Stage 1.
+
+**F3. 10+ independent `Players:GetPlayers()` scans**  
+Files: `MonsterAI.lua`, `QuestService.lua`, `ProgressionBridge.server.lua`, `LootService.lua`, `SpawnManager.lua`, `LumiaRegionalWildlife.server.lua`, `LumiaOuterMonsters.server.lua`, `LumiaZones.server.lua`, `LumiaStarterRegions.server.lua`, `AvatarEquipment.server.lua`, `ZoneTitle.client.lua`.  
+Each re-derives the current player set and root positions on its own cadence. At 20 players this is redundant; at 40 it's noticeable.  
+**Fix:** new `Shared/Players/PlayerPositions.lua` module refreshed once per server heartbeat, exposing `:Nearest(pos, radius)`, `:Within(pos, radius)`, `:Roots()`. Rewire each call site. Stage 2.
+
+**F4. One coroutine per monster**  
+File: `src/server/Monsters/MonsterAI.lua`  
+`MonsterAI.Run` spins `while ... do ... task.wait(tickInterval) end` for every living monster. At 50 mobs × 0.18s = ~277 iterations/second, each doing a `nearestPlayer()` scan and a raycast.  
+**Fix:** central `AIHeartbeat` using `RunService.Heartbeat`, per-monster staggered `nextTick`, shared player snapshot from `PlayerPositions`. Stage 3.
+
+**F5. Unbudgeted pathfinding**  
+File: `src/server/Monsters/MonsterNavigation.lua`  
+`_requestPath` spawns a `task.spawn` + `PathfindingService:CreatePath` + `ComputeAsync` per repath. At 50 mobs / 1.35s = ~37 path computations/second.  
+**Fix:** global queue, max 2–3 `ComputeAsync` per second, priority by distance to nearest player. Stage 3.
+
+### P1 — Do after P0
+
+**F6. `SpawnSafety.footprintBlocked` linear scan**  
+File: `src/server/Monsters/SpawnSafety.lua`  
+Iterates the entire `blockers` table per `tryPosition`. `FindSafeNear` can do 60 `tryPosition` calls per spawn.  
+**Fix:** spatial hash on a 32-stud grid. Stage 4.
+
+**F7. `SpawnSafety.Start` listens to `Workspace.DescendantAdded` globally**  
+File: `src/server/Monsters/SpawnSafety.lua`  
+Every runtime part addition triggers `track()`. Should scope to `Workspace.ForgottenForest` or tagged areas. Stage 4.
+
+**F8. `EnsureLoaded` busy-waits**  
+Files: `MobTuningService.lua`, `BalanceService.lua`, `GlobalCurveConfig.lua`  
+`while not loaded do task.wait(0.05) end` blocks the caller if load hasn't finished. Called from `MonsterService:SpawnMonster` before `StartAll` can complete → spawn stall risk.  
+**Fix:** `Loaded` BindableEvent, caller yields on event. Stage 3.
+
+**F9. Player-profile load has no timeout**  
+File: `src/server/Players/PlayerDataService.lua`  
+If `Persistence:Load` hangs, player sits at loading forever.  
+**Fix:** hard 30s timeout → kick with clear message. Stage 4.
+
+**F10. Quest XP has two sources of truth**  
+Files: `src/shared/Quests/QuestConfig.lua`, `src/server/Progression/QuestService.lua`, `src/server/Admin/BalanceService.lua`  
+`QuestService:TurnIn` uses `q.XP` from QuestConfig. The F8 admin dashboard writes `BalanceService.QuestXP`, which `QuestService` never reads. The admin panel's quest-XP fields are placebo controls.  
+**Fix:** pick one source (recommend BalanceService) and wire both. Stage 1.
+
+### P2 — Polish
+
+**F11. `EquipmentClient` print spam**  
+File: `src/client/UI/EquipmentClient.lua`  
+`print(...)` on every equip/unequip/move. Gate with `RunService:IsStudio()`. Stage 1.
+
+**F12. `LumiaLoot` hover check every frame**  
+File: `src/client/LumiaLoot.client.lua`  
+`RunService.RenderStepped` → `findLootableCorpse()` every frame, with `GetGuiObjectsAtPosition` + raycast-adjacent work. Throttle to 10 Hz. Stage 1.
+
+**F13. `LumiaEntry` 0.7s poll burst**  
+File: `src/replicatedFirst/LumiaEntry.client.lua`  
+Headless branch polls `GetEntryStatus` every 0.7s for up to 120s. At 20-player join storm, ~28 invocations/second.  
+**Fix:** backoff 0.7 → 1.5 → 3s. Stage 1.
+
+**F14. `PlayerProfileTemplate` missing `Interact` keybind**  
+File: `src/shared/Players/PlayerProfileTemplate.lua`  
+Template's `Settings.Keybinds` has 4 keys; `MovementKeybindConfig.Order` has 5. Migration handles it, but on-disk schema is inconsistent.  
+**Fix:** add `Interact = "MouseButton2"`. Stage 1.
+
+**F15. `StreamingEnabled` not verified**  
+Studio → Workspace property. Not configured anywhere in code. Large ground parts + scenery replicate at join.  
+**Fix:** document and flip. Stage 5.
+
+**F16. Three client art passes at startup**  
+Files: `LumiaPremiumWorld.client.lua`, `LumiaWorldArt.client.lua`, `LumiaRegionBeauty.client.lua`  
+Each builds its own decor folder with its own raycasts + overlaps. Fine individually, adds up on low-end.  
+**Fix:** sequence them with `task.wait` between, or unify. Stage 4 (optional).
+
+**F17. Owner-only scripts load for everyone**  
+Files: `LumiaCurveLab.client.lua`, `LumiaAdminBalance.client.lua`, `AdminLevelResetButton.client.lua`  
+Client-side check is correct (server re-checks), but the files still load and run their init for every player.  
+**Fix:** early `if player.UserId ~= 1614020138 then return end` before any UI construction. Stage 4 (optional).
+
+**F18. `MerchantTradeService:Within` pivot lookup**  
+File: `src/server/Commerce/MerchantTradeService.lua`  
+`npc:GetPivot()` on every request. NPCs are stationary.  
+**Fix:** cache pivot per NPC. Stage 4 (optional).
+
+---
+
+## Confirmed-best-in-class (no changes needed)
+
+- `PlayerPersistenceService` — session locking, ownership loss detection, `BindToClose` shutdown
+- `PlayerDataService` — kicks on load failure, publishes only validated profiles
+- `ServiceRegistry` — dependency resolution + test suite
+- `SwordCombatService` — server-derived weapon validation, hitbox + LOS + reach check
+- `MonsterLifecycleEvents` — event bus, no cross-service state reads
+- `MonsterNavigation` — fail-closed pathing (no `MoveTo` through walls)
+- `SpawnSafety` — ground + footprint + clearance validation
+- `BagSnapshot` / `InventoryService` — server-owned coordinates, zero-yield transfers
+- `ActionBarStorageService` — zero-yield ownership transfers
+- `EquipmentClient` — optimistic prediction with revision-based rollback
+- `MonsterNameplates` — one throttled `Heartbeat` for all mobs, distance scaling
+- `MonsterAnimations` — one loop, LOD by distance, procedural joints
+- `LumiaQuests.client` — server-authoritative quest cast bar
+- `LumiaPremiumWorld` / `LumiaWorldArt` / `LumiaRegionBeauty` — client-only, capped, yielding
+- `LumiaMiniMap` — 15 Hz update, real geometry
+- `GraphicsManager` — quality presets, streaming wait, frame budgets
+- `LumiaMovement.client` — camera-relative combat facing, per-player keybinds
+- `BalanceService` / `MobTuningService` — `UpdateAsync` + `MessagingService` cross-server sync
+- `LumiaEntry` — proper server-approved entry handshake
+
+---
+
+## Patch strategy per stage
+
+**Stage 1 (low-risk)** — direct replacements:
+- `ItemDefinitions.lua` — replace `Get` function body
+- `PlayerProfileValidator.lua` — append item validation loop
+- `EquipmentClient.lua` — swap `print` for `if RunService:IsStudio()`
+- `LumiaLoot.client.lua` — throttle hover check
+- `LumiaEntry.client.lua` — poll backoff
+- `QuestConfig.lua` + `QuestService.lua` — wire quest XP through BalanceService
+- `PlayerProfileTemplate.lua` — add `Interact` keybind
+
+**Stage 2 (PlayerPositions)** — additive:
+- New file `src/shared/Players/PlayerPositions.lua`
+- Rewire 8 call sites to consume it (each keeps a fallback if module absent)
+
+**Stage 3 (AI + path)** — hybrid:
+- `MonsterAI.lua` → new `MonsterAI.lua`, old saved as `MonsterAI.legacy.lua.bak`
+- `MonsterNavigation.lua` → new `MonsterNavigation.lua`, old saved as `MonsterNavigation.legacy.lua.bak`
+- `MobTuningService.lua`, `BalanceService.lua`, `GlobalCurveConfig.lua` — `EnsureLoaded` event-driven
+
+**Stage 4 (safety + polish)** — additive:
+- `SpawnSafety.lua` — spatial hash + scoped tracking
+- `PlayerDataService.lua` — load timeout
+- Client art sequencing, owner-script gating, merchant pivot cache
+
+**Stage 5 (docs)** — no code changes:
+- StreamingEnabled checklist
+- Mermaid architecture diagram
+
+---
+
+## Files modified / created by the updater (cumulative)
+
+### Stage 1
+| File | Action |
+|---|---|
+| `src/shared/Items/ItemDefinitions.lua` | replace `Get` body |
+| `src/shared/Players/PlayerProfileValidator.lua` | append item validation |
+| `src/shared/Players/PlayerProfileTemplate.lua` | add `Interact` keybind |
+| `src/shared/Progression/QuestConfig.lua` | remove per-quest `XP`/`Gold` duplication (or keep as fallback; see Stage 1 script) |
+| `src/server/Progression/QuestService.lua` | wire reward lookup through BalanceService |
+| `src/client/UI/EquipmentClient.lua` | `print` → `if RunService:IsStudio()` |
+| `src/client/LumiaLoot.client.lua` | throttle hover check |
+| `src/replicatedFirst/LumiaEntry.client.lua` | poll backoff |
+
+### Stage 2
+| File | Action |
+|---|---|
+| `src/shared/Players/PlayerPositions.lua` | **NEW** |
+| `src/server/Monsters/MonsterAI.lua` | consume PlayerPositions |
+| `src/server/Monsters/SpawnManager.lua` | consume PlayerPositions |
+| `src/server/Progression/QuestService.lua` | consume PlayerPositions |
+| `src/server/Combat/ProgressionBridge.server.lua` | consume PlayerPositions |
+| `src/server/Inventory/LootService.lua` | consume PlayerPositions |
+| `src/server/Monsters/LumiaRegionalWildlife.server.lua` | consume PlayerPositions |
+| `src/server/Monsters/LumiaOuterMonsters.server.lua` | consume PlayerPositions |
+| `src/client/ZoneTitle.client.lua` | (already throttled; may stay as-is) |
+
+### Stage 3
+| File | Action |
+|---|---|
+| `src/server/Monsters/MonsterAI.lua` | **REPLACE**, old → `MonsterAI.legacy.lua.bak` |
+| `src/server/Monsters/MonsterNavigation.lua` | **REPLACE**, old → `MonsterNavigation.legacy.lua.bak` |
+| `src/server/Admin/MobTuningService.lua` | event-driven `EnsureLoaded` |
+| `src/server/Admin/BalanceService.lua` | event-driven `EnsureLoaded` |
+| `src/server/Admin/GlobalCurveConfig.lua` | event-driven load (already async; verify) |
+
+### Stage 4
+| File | Action |
+|---|---|
+| `src/server/Monsters/SpawnSafety.lua` | spatial hash + scoped tracking |
+| `src/server/Players/PlayerDataService.lua` | load timeout |
+| `src/client/LumiaPremiumWorld.client.lua` | optional sequencing |
+| `src/client/LumiaCurveLab.client.lua` | early-return gate |
+| `src/client/LumiaAdminBalance.client.lua` | early-return gate |
+| `src/client/AdminLevelResetButton.client.lua` | early-return gate |
+| `src/server/Commerce/MerchantTradeService.lua` | pivot cache |
+
+### Stage 5
+| File | Action |
+|---|---|
+| `docs/STREAMING.md` | **NEW** — StreamingEnabled migration checklist |
+| `docs/ARCHITECTURE.md` | **NEW** — Mermaid diagram + service map |
+
+---
+
+## Test checklist (generic — expanded per stage)
+
+After each stage in Studio:
+- [ ] Player joins without errors in Output
+- [ ] Character loads, movement works
+- [ ] Sword equips, swing plays, hit registers
+- [ ] Wolf spawns, chases, attacks, dies, drops loot
+- [ ] Loot window opens on right-click near corpse
+- [ ] Bag opens (B), item moves, equip updates
+- [ ] Quest journal opens (J), accept/turn-in works
+- [ ] XP bar updates on kill
+- [ ] Achievement toast fires on first quest
+- [ ] Keybind panel (F10) loads, rebound key works
+- [ ] No `[Lumia]` warnings in Output during 5 min play
+- [ ] No memory growth in Performance stats
+- [ ] Server FPS stable (Ctrl+F3 in Studio)
+
+---
+
+## How to continue in a fresh chat
+
+Paste this:
+
+> "Read `C:\RobloxDevelopment\RealmsOfLumia\AUDIT.md` and `PROGRESS.md`, then continue from the first incomplete stage."
+
+A fresh assistant will be caught up.
