@@ -57,7 +57,7 @@ function Service:Snapshot(player)
         count=math.min(q.Count,Inventory:GetQuantity(player,q.DropItemId))
     end
     local turnIn = record ~= nil and count >= q.Count
-    return {
+    local result = {
         Ready=true, Campaign=Config.CampaignId, Completed=finished, Total=#Config.Quests,
         Level=profile.Character.Level, Gold=profile.Character.Gold, AllComplete=(q==nil),
         NPCState=q==nil and "Done" or (record==nil and "Available" or (turnIn and "TurnIn" or "Active")),
@@ -69,6 +69,62 @@ function Service:Snapshot(player)
             AcceptText=q.AcceptText, ProgressText=q.ProgressText, TurnInText=q.TurnInText,
         } or nil,
     }
+
+    -- Q2: per-giver state + active quests (additive fields on result)
+    local givers = {}
+    local activeQuests = {}
+    local allDone = {}
+    for _, entry in ipairs(Config.Quests) do
+        local gName = entry.Giver or "ElderRowan"
+        if not givers[gName] then
+            givers[gName] = { Name=gName, State="None", MinLevel=1, QuestId=nil, Count=0, Chain=entry.Chain==true }
+        end
+        local giver = givers[gName]
+        giver.Count = giver.Count + 1
+        local complete = progress.CompletedQuests[entry.Id] == true
+        local entryMin = entry.MinLevel or 1
+        local reachable = entryMin <= profile.Character.Level
+        if not complete then
+            if entryMin < giver.MinLevel then giver.MinLevel = entryMin end
+            if reachable and giver.State ~= "Current" and giver.State ~= "Available" then
+                giver.State = "Available"
+                giver.QuestId = giver.QuestId or entry.Id
+            elseif not reachable and giver.State == "None" then
+                giver.State = "Locked"
+            end
+            allDone[gName] = false
+        else
+            if allDone[gName] == nil then allDone[gName] = true end
+        end
+        local ar = progress.ActiveQuests[entry.Id]
+        if ar and not complete then
+            local c = math.clamp(tonumber(ar.Count) or 0, 0, entry.Count)
+            if entry.Kind == "Collect" and entry.DropItemId then
+                c = math.min(entry.Count, Inventory:GetQuantity(player, entry.DropItemId))
+            end
+            activeQuests[entry.Id] = {
+                Id=entry.Id, Count=entry.Count, Progress=c,
+                ReadyToTurnIn=c >= entry.Count, Kind=entry.Kind,
+                Zone=entry.Zone, Giver=gName,
+            }
+        end
+    end
+    if q then
+        local curGiver = q.Giver or "ElderRowan"
+        if givers[curGiver] then
+            givers[curGiver].State = "Current"
+            givers[curGiver].QuestId = q.Id
+            givers[curGiver].Chain = true
+        end
+    end
+    for gName, giver in pairs(givers) do
+        if giver.State ~= "Current" and allDone[gName] == true then
+            giver.State = "Done"
+        end
+    end
+    result.Givers = givers
+    result.ActiveQuests = activeQuests
+    return result
 end
 function Service:SetNotifier(remote) notifier=remote end
 function Service:Notify(player)

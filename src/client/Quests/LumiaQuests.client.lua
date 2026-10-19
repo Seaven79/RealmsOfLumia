@@ -259,21 +259,37 @@ if player.UserId==1614020138 then
 end
 
 local snapshot
-local markerGui
-local markerIcon
-local markerShadow
-local markerScale
-local markerHead
-local function syncMarker()
-    if not markerGui or not markerGui.Parent then return end
-    local state=snapshot and snapshot.NPCState or "Unknown"
-    local glyph=(state=="Available") and "!" or "?"
-    markerGui.Enabled=state~="Done" and state~="Unknown"
-    if markerIcon then
-        markerIcon.Text=glyph
-        markerIcon.TextColor3=(state=="Active") and Color3.fromRGB(167,171,171) or GOLDLIGHT
+local markersByGiver = {}
+local SILVER = Color3.fromRGB(200,200,200)
+local GRAY   = Color3.fromRGB(110,110,110)
+local function syncMarkers()
+    if not snapshot or type(snapshot.Givers) ~= "table" then return end
+    for gName, entry in pairs(markersByGiver) do
+        local giver = snapshot.Givers[gName]
+        local gui = entry.Gui
+        if gui and gui.Parent then
+            if not giver or giver.State == "Done" or giver.State == "None" then
+                gui.Enabled = false
+            else
+                gui.Enabled = true
+                local glyph = "!"
+                local color = GOLDLIGHT
+                if giver.State == "Current" then
+                    local aq = snapshot.ActiveQuests and snapshot.ActiveQuests[giver.QuestId]
+                    if aq and aq.ReadyToTurnIn then glyph = "?" end
+                elseif giver.State == "Available" then
+                    color = SILVER
+                elseif giver.State == "Locked" then
+                    color = GRAY
+                else
+                    gui.Enabled = false
+                end
+                if entry.Icon then entry.Icon.Text = glyph end
+                if entry.Icon then entry.Icon.TextColor3 = color end
+                if entry.Shadow then entry.Shadow.Text = glyph end
+            end
+        end
     end
-    if markerShadow then markerShadow.Text=glyph end
 end
 local function render(data)
     if type(data)~="table" or not data.Ready then
@@ -293,7 +309,7 @@ local function render(data)
         objective.Text="All available quests completed."
         reward.Text="Your rewards have been received."
         abandonButton.Visible=false
-        syncMarker()
+        syncMarkers()
         return
     end
     local q=data.Quest
@@ -318,7 +334,7 @@ local function render(data)
             or (progressLine.."\nSearch the world and uncover the answer.")
     end
     reward.Text=string.format("+%d EXPERIENCE     •     +%s",q.XP or 0,Currency.FormatShort(q.Gold or 0))
-    syncMarker()
+    syncMarkers()
 end
 local function refresh()
     local ok,data=pcall(function() return getJournal:InvokeServer() end)
@@ -455,41 +471,51 @@ dialogClose.Activated:Connect(closeDialogue)
 decline.Activated:Connect(closeDialogue)
 
 -- Per-player 3D quest glyph: solid display font, layered outline/shadow, distance scaling.
-local function attachMarker(npc)
-    if markerGui then markerGui:Destroy() end
-    -- Attach the personal quest glyph to the stable root, never the animated head.
-    -- It follows NPC world position without bouncing with walk/idle animations.
-    local root=npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
-    if not root then root=npc:WaitForChild("HumanoidRootPart",8) end
+local function attachMarkerForGiver(npc)
+    if not npc then return end
+    local name = npc.Name
+    if markersByGiver[name] then return end
+    local root = npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
+    if not root then root = npc:WaitForChild("HumanoidRootPart", 8) end
     if not root then return end
-    markerHead=root
-    markerGui=ui("BillboardGui",{
-        Name="LumiaPersonalQuestSymbol",Adornee=root,AlwaysOnTop=false,LightInfluence=0,
-        Size=UDim2.fromOffset(70,85),StudsOffsetWorldSpace=Vector3.new(0,4.55,0),
-        MaxDistance=80,
-    },playerGui)
-    local canvas=ui("Frame",{Name="MarkerCanvas",Size=UDim2.fromScale(1,1),BackgroundTransparency=1},markerGui)
-    markerScale=ui("UIScale",{Scale=1},canvas)
-    markerShadow=ui("TextLabel",{
+    local gui = ui("BillboardGui", {
+        Name="LumiaPersonalQuestSymbol", Adornee=root, AlwaysOnTop=false, LightInfluence=0,
+        Size=UDim2.fromOffset(70,85), StudsOffsetWorldSpace=Vector3.new(0,4.55,0),
+        MaxDistance=80, Enabled=false,
+    }, playerGui)
+    local canvas = ui("Frame",{Name="MarkerCanvas",Size=UDim2.fromScale(1,1),BackgroundTransparency=1},gui)
+    local scale = ui("UIScale",{Scale=1},canvas)
+    local shadow = ui("TextLabel",{
         Name="DropShadow",Position=UDim2.fromOffset(2,4),Size=UDim2.fromScale(1,1),
         Text="!",Font=Enum.Font.GothamBlack,TextSize=69,
         TextColor3=Color3.fromRGB(14,13,13),TextStrokeTransparency=0,
         TextStrokeColor3=Color3.fromRGB(12,10,9),BackgroundTransparency=1,
     },canvas)
-    markerIcon=ui("TextLabel",{
+    local icon = ui("TextLabel",{
         Name="Glyph",Size=UDim2.fromScale(1,1),Text="!",
         Font=Enum.Font.GothamBlack,TextSize=69,
         TextColor3=GOLDLIGHT,TextStrokeTransparency=0.06,
         TextStrokeColor3=Color3.fromRGB(28,19,10),BackgroundTransparency=1,
     },canvas)
-    syncMarker()
+    markersByGiver[name] = { Gui=gui, Icon=icon, Shadow=shadow, Scale=scale, Head=root }
 end
 task.spawn(function()
-    local world=workspace:WaitForChild("LumiaQuestWorld",40)
-    if world then
-        local npc=world:WaitForChild("ElderRowan",20)
-        if npc then attachMarker(npc) end
+    local world = workspace:WaitForChild("LumiaQuestWorld", 40)
+    if not world then return end
+    local function scan()
+        for _, desc in ipairs(world:GetDescendants()) do
+            if desc:IsA("Model") and desc:GetAttribute("LumiaNPCType") == "QuestGiver" then
+                attachMarkerForGiver(desc)
+            end
+        end
     end
+    scan()
+    world.DescendantAdded:Connect(function(d)
+        if d:IsA("Model") and d:GetAttribute("LumiaNPCType") == "QuestGiver" then
+            attachMarkerForGiver(d)
+        end
+    end)
+    if snapshot then syncMarkers() end
 end)
 
 -- Frame-perfect hover and cursor alignment: no previous 65ms throttle.
@@ -727,12 +753,13 @@ RunService.RenderStepped:Connect(function()
     end
     local target=(not castBusy) and targetLabel() or nil
     setPointer(target~=nil,target)
-    if markerScale and markerHead and markerHead.Parent then
-        local camera=workspace.CurrentCamera
-        if camera then
-            local d=(camera.CFrame.Position-markerHead.Position).Magnitude
-            -- Like enemy nameplates: far = small; near = normal size; never grows beyond 1x.
-            markerScale.Scale=1-0.58*math.clamp((d-14)/65,0,1)
+    local camera = workspace.CurrentCamera
+    if camera then
+        for _, entry in pairs(markersByGiver) do
+            if entry.Head and entry.Head.Parent and entry.Scale then
+                local d = (camera.CFrame.Position - entry.Head.Position).Magnitude
+                entry.Scale.Scale = 1 - 0.58*math.clamp((d-14)/65, 0, 1)
+            end
         end
     end
 end)
