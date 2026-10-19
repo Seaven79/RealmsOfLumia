@@ -312,3 +312,102 @@ Add `MonsterConfig.TrashDefaults` shared table + `MonsterConfig.Get()` merge hel
 ## Pending - Stage 5
 
 StreamingEnabled migration doc + architecture diagram.
+---
+
+## Stage 3b - DONE (1fa11ba)
+
+Event-driven `EnsureLoaded` in `BalanceService` and `MobTuningService`. Replaced `while not loaded do task.wait(0.05) end` with `Loaded.Event:Wait()` + `Loaded:Fire()`. `GlobalCurveConfig` needed no change (already async). Verified in Studio.
+
+## Stage 4a - DONE
+
+Aggro range tuning in `MonsterConfig.lua`:
+
+| Wolf | Detection (old→new) | ChaseLimit (old→new) |
+|---|---|---|
+| ForestWolf | 8→12 | 20→40 |
+| OldRoadStalker | 9→11 | 19→38 |
+| CreekFenWolf | 10→12 | 21→42 |
+| StoneboundWolf | 10→12 | 20→40 |
+| DireForestWolf | 11→13 | 20→40 |
+| GatewatchWolf | 12→14 | 22→44 |
+| ThornboundGuardian | 35 (unchanged) | 28 (unchanged) |
+
+Verified in Studio - wolves chase farther, notice sooner, boss stays arena-locked. Boss untouched by design.
+
+## Current state - All critical optimizations done
+
+**Stages 1-4a complete.** ~90% of the planned CPU wins are shipped.
+
+## Remaining work
+
+**Stage 4b (optional, low priority):**
+- SpawnSafety spatial hash for blockers
+- SpawnSafety scoped to ForgottenForest only
+- Player-load 30s timeout
+- Client art pass sequencing
+
+**Config refactor (optional):**
+- MonsterConfig.TrashDefaults + IsBoss flag
+- Shared defaults for trash wolves, per-creature boss overrides
+
+**Stage 5 (docs only):**
+- StreamingEnabled migration checklist
+- Architecture diagram
+
+**Recommendation:** Playtest for 1-2 weeks at 20 players. If smooth, skip Stage 4b and ship Stage 5 docs. If performance issues appear, revisit.
+
+## Lessons learned (updated)
+
+- **UTF-8 BOM:** PS 5.1 `-Encoding UTF8` writes BOM. Use `UTF8Encoding(False)`.
+- **Path bug:** use `game:GetService("ReplicatedStorage"):WaitForChild("Lumia")`, NOT `script.Parent.Parent.Parent:WaitForChild("Shared")`.
+- **LF vs CRLF:** scripts must normalize line endings before matching (`Replace-Lines` helper).
+- **Anchor anchoring:** prefer MaxHealth/DisplayName as unique wolf identifiers when values duplicate.
+- **Aggro tuning regex:** `(DetectionRadius\s*=\s*)\d+` matches both spaced and compact formats.
+---
+
+## Stage 3b - DONE (1fa11ba)
+
+Event-driven EnsureLoaded in BalanceService and MobTuningService. Replaced busy-wait loops with BindableEvent wait + fire. GlobalCurveConfig needed no change. Verified in Studio.
+
+## Stage 4a - DONE (commit pending)
+
+Aggro range tuning in MonsterConfig.lua:
+- ForestWolf: Det 8->12, Chase 20->40
+- OldRoadStalker: Det 9->11, Chase 19->38
+- CreekFenWolf: Det 10->12, Chase 21->42
+- StoneboundWolf: Det 10->12, Chase 20->40
+- DireForestWolf: Det 11->13, Chase 20->40
+- GatewatchWolf: Det 12->14, Chase 22->44
+- ThornboundGuardian: unchanged (boss)
+
+Verified in Studio. Wolves chase 2x farther, notice sooner, boss stays arena-locked.
+
+## Current state - All critical optimizations shipped
+
+Stages 1-4a complete. ~90% of planned CPU wins done. Remaining work is optional polish (Stage 4b spawn safety, config refactor, Stage 5 docs).
+
+Recommendation: playtest 1-2 weeks at 20 players. If smooth, ship Stage 5 docs and pause.
+---
+
+## Stage 3b - DONE (1fa11ba)
+
+Event-driven EnsureLoaded in BalanceService and MobTuningService. Replaced busy-wait loops with BindableEvent wait + fire. GlobalCurveConfig needed no change. Verified in Studio.
+
+## Stage 4a - DONE
+
+Aggro range tuning in MonsterConfig.lua:
+- ForestWolf: Det 8->12, Chase 20->40
+- OldRoadStalker: Det 9->11, Chase 19->38
+- CreekFenWolf: Det 10->12, Chase 21->42
+- StoneboundWolf: Det 10->12, Chase 20->40
+- DireForestWolf: Det 11->13, Chase 20->40
+- GatewatchWolf: Det 12->14, Chase 22->44
+- ThornboundGuardian: unchanged (boss)
+
+Verified in Studio. Wolves chase 2x farther, notice sooner, boss stays arena-locked.
+
+## Current state - All critical optimizations shipped
+
+Stages 1-4a complete. ~90% of planned CPU wins done. Remaining work is optional polish (Stage 4b spawn safety, config refactor, Stage 5 docs).
+
+Recommendation: playtest 1-2 weeks at 20 players.

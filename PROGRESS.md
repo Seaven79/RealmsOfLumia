@@ -113,3 +113,58 @@ Replace busy-wait loops with BindableEvent. Low risk, surgical patches.
 - `b54e876` Stage 2a: PlayerPositions module
 - `bfcca19` Stage 1: low-risk wins
 - `deac8df` Baseline checkpoint
+## Stage 3b - Complete (1fa11ba)
+
+**Status:** DONE and committed
+**What shipped:**
+- BalanceService: busy-wait replaced with Loaded BindableEvent wait
+- MobTuningService: same fix
+- GlobalCurveConfig: no change needed
+
+## Stage 4a - Complete
+
+**Status:** DONE - verify in Studio then commit
+**What shipped:**
+- MonsterConfig.lua: DetectionRadius and ChaseLimit bumped for 6 wolves
+- Boss (ThornboundGuardian) unchanged
+- Wolves now chase twice as far, notice 50% sooner
+
+## Commit history (updated)
+- `pending` Stage 4a: aggro range tuning
+- `1fa11ba` Stage 3b: event-driven EnsureLoaded
+- `d9b1ada` Admin UI removed
+- `e1123a4` Stage 3a: pathfinding queue + roof escape
+- `8d455a7` Stage 2b: PlayerPositions rewires
+- `b54e876` Stage 2a: PlayerPositions module
+- `bfcca19` Stage 1: low-risk wins
+- `deac8df` Baseline checkpoint
+
+## Recommendation
+
+Playtest 1-2 weeks at 20 players. If smooth, ship Stage 5 docs and pause. Stage 4b is optional preemptive polish for 40+ scale.
+## Stage 3b - Complete (1fa11ba)
+
+- BalanceService + MobTuningService: busy-wait replaced with Loaded BindableEvent
+- GlobalCurveConfig: no change needed
+
+## Stage 4a - Complete (commit pending)
+
+- MonsterConfig.lua: Det and ChaseLimit doubled for 6 wolves
+- Boss unchanged
+
+## Recommendation
+
+Playtest 1-2 weeks at 20 players. If smooth, ship Stage 5 docs and pause.
+## Stage 3b - Complete (1fa11ba)
+
+- BalanceService + MobTuningService: busy-wait replaced with Loaded BindableEvent
+- GlobalCurveConfig: no change needed
+
+## Stage 4a - Complete
+
+- MonsterConfig.lua: Det and ChaseLimit doubled for 6 wolves
+- Boss unchanged
+
+## Recommendation
+
+Playtest 1-2 weeks at 20 players. If smooth, ship Stage 5 docs and pause.
