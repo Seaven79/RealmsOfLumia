@@ -8,8 +8,8 @@
 | 2026-10-18 | 1 v1 Low-risk wins | ROLLED BACK | UTF-8 BOM bug broke module loading |
 | 2026-10-18 | 1 v2 Low-risk wins | DONE - committed bfcca19 | 4 fixes, verified BOM-free |
 | 2026-10-18 | 2a PlayerPositions module | DONE - committed | 1 module + 9 requires, no consumers |
-| 2026-10-18 | 2b PlayerPositions rewires | READY | 7 function bodies, next action |
-| 2026-10-18 | 3 AI ticker + pathfinding | PENDING | Requires 2b |
+| 2026-10-18 | 2b PlayerPositions rewires | DONE - committed 8d455a7 | 7 functions rewired, game verified |
+| 2026-10-18 | 3 AI ticker + pathfinding | READY | Next action |
 | 2026-10-18 | 4 Safety + polish | PENDING | |
 | 2026-10-18 | 5 StreamingEnabled docs | PENDING | |
 
@@ -57,3 +57,30 @@ Paste:
 - Branch: eature/mmo-core
 - Target players: 20/server, headroom 40
 - 150 tracked Lua files
+## Stage 2b - Complete
+
+**Date:** 2026-10-18
+**Status:** DONE and committed (8d455a7)
+**What shipped:**
+- Rewired 7 functions to consume PlayerPositions cache
+- Files: SpawnManager, LumiaRegionalWildlife, LumiaOuterMonsters, QuestService, ProgressionBridge, LootService, MonsterAI
+- 43 lines of redundant player-scanning code eliminated
+
+**Verified in Studio:** game loads, wolves chase, loot drops, quest credit works
+
+## Stage 3 - Next
+
+**Status:** READY
+**Scope:**
+1. Central AI ticker (one Heartbeat loop replaces per-monster coroutines)
+2. Global pathfinding budget (2-3 ComputeAsync/sec max)
+3. Event-driven EnsureLoaded (replace busy-wait loops)
+
+**Files affected:** MonsterAI.lua, MonsterNavigation.lua, MobTuningService.lua, BalanceService.lua, GlobalCurveConfig.lua
+
+## Commit history
+- \8d455a7\ Stage 2b: PlayerPositions rewires
+- \d895ebd\ PROGRESS: Stage 2a done, Stage 2b ready
+- \54e876\ Stage 2a: PlayerPositions module (Phase 1)
+- \fcca19\ Stage 1: low-risk wins
+- \deac8df\ Baseline checkpoint
