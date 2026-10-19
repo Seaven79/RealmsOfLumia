@@ -205,3 +205,9 @@ Playtest 1-2 weeks at 20 players. If smooth, ship Stage 5 docs and pause.
 - Raw file fetch: `https://raw.githubusercontent.com/Seaven79/RealmsOfLumia/feature/mmo-core/src/path/file.lua`
 - Backup: `.bak/` + git history
 - Rollback: `git checkout <hash>`
+
+## Phase 2 - ServerBootstrap Manifest Refactor
+
+Completed. ServiceManifest.lua added with 9 service entries. ServerBootstrap now reads manifest for all registration. Adding a new service = 1 line in ServiceManifest.lua. Zero bootstrap edits.
+
+New workflow: add service = new file + 1 manifest entry.
