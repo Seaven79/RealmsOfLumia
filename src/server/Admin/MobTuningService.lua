@@ -10,6 +10,7 @@ local LootConfig = require(Shared:WaitForChild("Loot"):WaitForChild("LootConfig"
 local ItemDefinitions = require(Shared:WaitForChild("Items"):WaitForChild("ItemDefinitions"))
 
 local MobTuning = {}
+MobTuning.Loaded = Instance.new("BindableEvent")
 local store = DataStoreService:GetDataStore("RealmsOfLumia_MobTuning_" .. tostring(game.GameId))
 local KEY = "MobTuning_v1"
 local TOPIC = "LumiaMobTuning_v1"
@@ -76,7 +77,7 @@ local values = clean(nil)
 function MobTuning:EnsureLoaded()
     if loaded then return available end
     if loading then
-        while not loaded do task.wait(0.05) end
+        MobTuning.Loaded.Event:Wait()
         return available
     end
     loading=true
@@ -89,6 +90,7 @@ function MobTuning:EnsureLoaded()
     end
     loaded=true
     loading=false
+    MobTuning.Loaded:Fire()
     return available
 end
 

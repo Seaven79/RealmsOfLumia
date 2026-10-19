@@ -12,6 +12,7 @@ local CurveLab = require(script.Parent:WaitForChild("CurveLabService"))
 
 local BalanceService = {}
 BalanceService.Changed = Instance.new("BindableEvent")
+BalanceService.Loaded = Instance.new("BindableEvent")
 local store = DataStoreService:GetDataStore("RealmsOfLumia_Balance_" .. tostring(game.GameId))
 local STORE_KEY = "SharedBalance_v1"
 local TOPIC = "LumiaBalance_v1"
@@ -56,7 +57,7 @@ end
 function BalanceService:EnsureLoaded()
     if loaded then return persistenceAvailable end
     if loading then
-        while not loaded do task.wait(0.05) end
+        BalanceService.Loaded.Event:Wait()
         return persistenceAvailable
     end
     loading=true
@@ -69,6 +70,7 @@ function BalanceService:EnsureLoaded()
     end
     loaded=true
     loading=false
+    BalanceService.Loaded:Fire()
     broadcast()
     return persistenceAvailable
 end
