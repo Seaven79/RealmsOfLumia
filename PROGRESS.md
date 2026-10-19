@@ -84,3 +84,32 @@ Paste:
 - \54e876\ Stage 2a: PlayerPositions module (Phase 1)
 - \fcca19\ Stage 1: low-risk wins
 - \deac8df\ Baseline checkpoint
+## Stage 3a - Complete (e1123a4)
+
+**Status:** DONE and committed
+**Date:** 2026-10-19
+**What shipped:**
+- PathfindingQueue.lua (new module) - 3 ComputeAsync/sec global budget
+- MonsterNavigation._requestPath routes through queue
+- MonsterAI roof escape timer (8s wait, then leash)
+- ServerBootstrap starts queue on boot
+
+**Verified:** wolves chase, roof escape works, no CPU spikes on multi-mob repath.
+
+## Stage 3b - Next
+
+Event-driven EnsureLoaded in BalanceService, MobTuningService, GlobalCurveConfig.
+Replace busy-wait loops with BindableEvent. Low risk, surgical patches.
+
+## Stage 4 - Planned
+
+4a: TrashDefaults + boss overrides in MonsterConfig (deferred refactor from Stage 3)
+4b: SpawnSafety spatial hash, scoped tracking, player-load timeout, polish
+
+## Commit history (updated)
+- `e1123a4` Stage 3a: pathfinding queue + roof escape timer
+- `f615e53` PROGRESS: Stage 2 complete, Stage 3 ready
+- `8d455a7` Stage 2b: PlayerPositions rewires
+- `b54e876` Stage 2a: PlayerPositions module
+- `bfcca19` Stage 1: low-risk wins
+- `deac8df` Baseline checkpoint

@@ -275,3 +275,40 @@ Paste this:
 > "Read `C:\RobloxDevelopment\RealmsOfLumia\AUDIT.md` and `PROGRESS.md`, then continue from the first incomplete stage."
 
 A fresh assistant will be caught up.
+
+---
+
+## Stage 3a - DONE (e1123a4)
+
+**Shipped:**
+- New file: `src\server\Monsters\PathfindingQueue.lua` (130 lines)
+- Patched: `MonsterNavigation.lua` - `_requestPath` now routes through global queue (max 3 ComputeAsync/sec, priority: combat > wander)
+- Patched: `MonsterAI.lua` - roof escape timer replaces permanent freeze (8s wait at roof base, then leash home)
+- Patched: `ServerBootstrap.server.lua` - starts PathfindingQueue on boot
+
+**Verified in Studio:** queue starts, wolves chase normally, roof escape works, no errors.
+
+## Pending - Stage 3b
+
+Event-driven `EnsureLoaded` in:
+- `BalanceService.lua`
+- `MobTuningService.lua`
+- `GlobalCurveConfig.lua`
+
+Replace `while not loaded do task.wait(0.05) end` with BindableEvent wait.
+
+## Pending - Stage 4a (Aggro config refactor)
+
+Add `MonsterConfig.TrashDefaults` shared table + `MonsterConfig.Get()` merge helper + `IsBoss` flag. Trash wolves inherit defaults, bosses override everything. Deferred from Stage 3 discussion.
+
+## Pending - Stage 4b
+
+- SpawnSafety spatial hash for blockers
+- SpawnSafety scoped to ForgottenForest only
+- Player-load 30s timeout
+- Client art pass sequencing
+- Owner-script gating
+
+## Pending - Stage 5
+
+StreamingEnabled migration doc + architecture diagram.
