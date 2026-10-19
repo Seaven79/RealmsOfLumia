@@ -211,3 +211,28 @@ Playtest 1-2 weeks at 20 players. If smooth, ship Stage 5 docs and pause.
 Completed. ServiceManifest.lua added with 9 service entries. ServerBootstrap now reads manifest for all registration. Adding a new service = 1 line in ServiceManifest.lua. Zero bootstrap edits.
 
 New workflow: add service = new file + 1 manifest entry.
+
+## Session 2026-10-19 - Final
+
+All patches shipped, all pushed to origin/feature/mmo-core.
+
+### Commits
+- `pending` Modal UI state refactor
+- `pending` ServerBootstrap manifest refactor
+- `5d76dfe` Wolf polish (movement + animation + engagement)
+- `f7bfc28` ServiceManifest.lua created
+- `203fc39` checkpoint before modal refactor
+- (plus earlier stages - see git log)
+
+### Open bug
+Quest marker on Elder Rowan stays visible after campaign complete; other quest givers don't show markers. Fix in progress.
+
+### Next
+Fix quest marker bug, then external playtest at 20 players.
+
+### Verifications
+- Zero errors in Studio Output on play
+- All 9 services init + start
+- All 7 modals tested with cursor hide
+- Wolves aggressive, animated, fluid
+- Combat, loot, quests, inventory, merchant all functional

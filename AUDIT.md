@@ -489,3 +489,44 @@ Recommendation: playtest 1-2 weeks at 20 players.
 7. Stage 4a (`ee098a9`): Aggro range tuning + docs
 
 **Game verified working in Studio after each stage.**
+---
+
+## Session 2026-10-19 - Complete
+
+**14+ patches shipped and verified:**
+
+| # | Patch | Commit |
+|---|---|---|
+| 1 | ItemDefinitions hot-path | bfcca19 |
+| 2 | PlayerProfileValidator item checks | bfcca19 |
+| 3 | PlayerProfileTemplate keybind | bfcca19 |
+| 4 | EquipmentClient print gating | bfcca19 |
+| 5 | PlayerPositions module | b54e876 |
+| 6 | PlayerPositions 7 rewires | 8d455a7 |
+| 7 | PathfindingQueue + roof escape | e1123a4 |
+| 8 | Admin UI removal (1118 lines) | d9b1ada |
+| 9 | Event-driven EnsureLoaded | 1fa11ba |
+| 10 | Aggro range 20-40 | ee098a9 |
+| 11 | Mob movement smoothing | 5d76dfe |
+| 12 | Wolf animation fix | 5d76dfe |
+| 13 | AI engagement fix | 5d76dfe |
+| 14 | ServerBootstrap manifest refactor | pending commit |
+| 15 | Modal UI state refactor | pending commit |
+
+## Open bug (in progress)
+
+**Quest marker bug:** "!" persists on Elder Rowan after campaign complete; other quest givers (ThornwatchScout, GateWarden) show no marker. Root cause: client marker system only tracks ElderRowan and uses single NPCState.
+
+**Fix planned:**
+- Server: `QuestService:Snapshot()` returns `QuestsByGiver` map
+- Client: attach markers to ALL NPCs with `LumiaNPCType == "QuestGiver"`, sync per-giver state
+
+## Next milestone
+
+Playtest 1-2 weeks at 20 players after quest marker fix lands. Log specific issues for targeted fixes.
+
+## Deferred
+
+- Stage 4b spawn safety
+- TrashDefaults config refactor
+- Stage 5 docs
