@@ -5,6 +5,7 @@
 
 local PathfindingService = game:GetService("PathfindingService")
 local HouseZones = require(script.Parent:WaitForChild("MonsterHouseZones"))
+local PathfindingQueue = require(script.Parent:WaitForChild("PathfindingQueue"))
 
 local MonsterNavigation = {}
 MonsterNavigation.__index = MonsterNavigation
@@ -145,7 +146,6 @@ function MonsterNavigation:_requestPath(now)
         return
     end
 
-    -- Re-use the current route until target has moved enough to matter.
     if self.Route and not self.Blocked and self.PathGoal
         and flatDistance(self.PathGoal, self.Goal) < REPATH_MOVE_DISTANCE then
         return
@@ -157,50 +157,36 @@ function MonsterNavigation:_requestPath(now)
     local destination = self.Goal
     local source = self.Root.Position
 
-    task.spawn(function()
-        local success, waypoints, path
-        success = pcall(function()
-            path = PathfindingService:CreatePath({
-                AgentRadius = self.Radius,
-                AgentHeight = self.Height,
-                AgentCanJump = false,
-                AgentCanClimb = false,
-                WaypointSpacing = 3,
-                Costs = { LumiaNoMobHouse = math.huge },
-            })
-            path:ComputeAsync(source, destination)
-            if path.Status == Enum.PathStatus.Success then
-                waypoints = path:GetWaypoints()
+    -- Stage 3a: route through global budget queue
+    local priority = (self.Intent == "Chase" or self.Intent == "Retreat") and 100 or 800
+    PathfindingQueue:Request(
+        self.Model, source, destination,
+        { Radius = self.Radius, Height = self.Height, WaypointSpacing = 3, Costs = { LumiaNoMobHouse = math.huge } },
+        priority,
+        function(waypoints, path)
+            self.Computing = false
+            if self.Destroyed or self.Token ~= generation
+                or not self.Model.Parent or self.Humanoid.Health <= 0 then
+                return
             end
-        end)
-
-        self.Computing = false
-        if self.Destroyed or self.Token ~= generation
-            or not self.Model.Parent or self.Humanoid.Health <= 0 then
-            return
-        end
-
-        self:_clearRoute()
-        self.Blocked = false
-        self.PathGoal = destination
-
-        if success and waypoints and usablePath(waypoints, self.HomeY, self.Radius) then
-            self.Route = waypoints
-            self.Index = 2 -- first waypoint is the current position
-            self.LastProgress = os.clock()
-            self.LastPosition = self.Root.Position
-            if path then
-                self.PathConnection = path.Blocked:Connect(function(blockedIndex)
-                    if blockedIndex >= self.Index then
-                        self.Blocked = true
-                    end
-                end)
+            self:_clearRoute()
+            self.Blocked = false
+            self.PathGoal = destination
+            if waypoints and usablePath(waypoints, self.HomeY, self.Radius) then
+                self.Route = waypoints
+                self.Index = 2
+                self.LastProgress = os.clock()
+                self.LastPosition = self.Root.Position
+                if path then
+                    self.PathConnection = path.Blocked:Connect(function(blockedIndex)
+                        if blockedIndex >= self.Index then self.Blocked = true end
+                    end)
+                end
+            else
+                self.Humanoid:MoveTo(self.Root.Position)
             end
-        else
-            -- Fail closed: do not walk straight through the obstacle.
-            self.Humanoid:MoveTo(self.Root.Position)
         end
-    end)
+    )
 end
 
 function MonsterNavigation:Step(now)

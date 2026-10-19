@@ -130,6 +130,7 @@ function MonsterAI.Run(model, definition, home)
     local nextAttack = 0
     local nextWander = 0
     local wanderGoal = nil
+    local wanderGoal = nillocal roofEscapeTimer = nil
     local creatureBounds = model:GetExtentsSize()
     local monsterRadius = math.max(creatureBounds.X, creatureBounds.Z) * 0.5
     local navigator = MonsterNavigation.new(model, humanoid, root, home)
@@ -193,11 +194,24 @@ function MonsterAI.Run(model, definition, home)
                     and hasSight(model, targetRoot)
 
                 if verticalDistance > 5.5 then
-                    -- Player on an inaccessible roof: do not climb after them.
+                    -- Stage 3a: player is unreachable above. Wolf paths to base,
+                    -- waits 8s, then leashes home. Never freezes forever.
                     state = "Chase"
                     updateFacing(humanoid, root, targetRoot, false)
-                    navigator:Stop()
-                    humanoid.WalkSpeed = 0
+                    if not roofEscapeTimer then
+                        roofEscapeTimer = now
+                        local roofBase = Vector3.new(targetRoot.Position.X, home.Y, targetRoot.Position.Z)
+                        navigator:SetGoal(roofBase, "Chase")
+                        humanoid.WalkSpeed = math.min(definition.ChaseSpeed, 10)
+                    end
+                    if now - roofEscapeTimer >= 8 then
+                        target = nil
+                        state = "Return"
+                        roofEscapeTimer = nil
+                        navigator:Stop()
+                    else
+                        navigator:Step(now)
+                    end
                 elseif distance < retreatDistance and visible then
                     state = "Reposition"
                     updateFacing(humanoid, root, targetRoot, true)

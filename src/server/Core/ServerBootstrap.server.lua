@@ -1,6 +1,7 @@
 local services = script.Parent.Parent -- Services root; script is inside Core
 local ServiceRegistry = require(script.Parent:WaitForChild("ServiceRegistry"))
 local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
+local PathfindingQueue = require(script.Parent.Parent:WaitForChild("Monsters"):WaitForChild("PathfindingQueue"))
 
 local PlayerSessionService = require(services:WaitForChild("Players"):WaitForChild("PlayerSessionService"))
 local PlayerPersistenceService = require(services:WaitForChild("Players"):WaitForChild("PlayerPersistenceService"))
@@ -15,6 +16,7 @@ local SwordCombatService = require(services:WaitForChild("Combat"):WaitForChild(
 print("[Lumia - Server Bootstrap] MMO server bootstrap starting...")
 
 PlayerPositions:Start()
+PathfindingQueue:Start()
 ServiceRegistry.Register("PlayerSessionService", PlayerSessionService)
 
 ServiceRegistry.Register(
