@@ -1,5 +1,7 @@
--- REALMS OF LUMIA - FAST PREDICTED EQUIPMENT + SAVED BAG REARRANGEMENT
--- The client predicts only how items LOOK. Server responses are authoritative.
+-- REALMS OF LUMIA - FAST PREDICTED EQUIPMENT
+-- Stage 1 patch: print gated to Studio only.
+
+local RunService = game:GetService("RunService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local lumia = ReplicatedStorage:WaitForChild("Lumia")
 local equipmentNetwork = lumia:WaitForChild("EquipmentNetwork")
@@ -8,6 +10,8 @@ local equipRemote = equipmentNetwork:WaitForChild("Equip")
 local unequipRemote = equipmentNetwork:WaitForChild("Unequip")
 local moveRemote = inventoryNetwork:WaitForChild("MoveBagItem")
 
+local IS_STUDIO = RunService:IsStudio()
+
 local EquipmentClient = {}
 local bagChanged = Instance.new("BindableEvent")
 local equipmentChanged = Instance.new("BindableEvent")
@@ -15,17 +19,16 @@ local completed = Instance.new("BindableEvent")
 local needsRefresh = Instance.new("BindableEvent")
 EquipmentClient.BagChanged = bagChanged.Event
 EquipmentClient.EquipmentChanged = equipmentChanged.Event
-EquipmentClient.Completed = completed.Event -- (ok, message, sourceKind)
+EquipmentClient.Completed = completed.Event
 EquipmentClient.NeedsRefresh = needsRefresh.Event
 
-local confirmedBag = nil -- { Items = {...}, Bags = {...}, ViewMode = ..., SelectedBagId = ... }
+local confirmedBag = nil
 local confirmedEquipment = nil
 local pending = nil
 local revision = 0
 
 local function normalizeBag(raw)
     if type(raw) ~= "table" then return nil end
-    -- Older servers returned a compact array; the new bridge returns an object.
     if type(raw.Items) == "table" and type(raw.Bags) == "table" then return raw end
     return nil
 end
@@ -55,9 +58,7 @@ local function cloneItems(items)
 end
 local function findAt(items, bagId, bagSlot)
     for index, item in ipairs(items) do
-        if item.BagId == bagId and item.BagSlot == bagSlot then
-            return item, index
-        end
+        if item.BagId == bagId and item.BagSlot == bagSlot then return item, index end
     end
     return nil, nil
 end
@@ -93,31 +94,25 @@ function EquipmentClient.GetBagView()
             end
         end
     end
-    return {
-        Items = items, Bags = base.Bags,
-        ViewMode = base.ViewMode, SelectedBagId = base.SelectedBagId, Currency=base.Currency,
-    }
+    return { Items = items, Bags = base.Bags,
+        ViewMode = base.ViewMode, SelectedBagId = base.SelectedBagId, Currency = base.Currency }
 end
 function EquipmentClient.GetEquipmentView()
     local equipment = type(confirmedEquipment) == "table"
         and table.clone(confirmedEquipment) or {}
     if pending then
-        if pending.Kind == "Equip" then
-            equipment[pending.Slot] = pending.Item
-        elseif pending.Kind == "Unequip" then
-            equipment[pending.Slot] = nil
-        end
+        if pending.Kind == "Equip" then equipment[pending.Slot] = pending.Item
+        elseif pending.Kind == "Unequip" then equipment[pending.Slot] = nil end
     end
     return equipment
 end
 
 local function send(action)
-    if pending then return false, "Wait for the previous item move" end
+    if pending then return false, "Wait for previous move" end
     pending = action
     revision += 1
     bagChanged:Fire()
-    equipmentChanged:Fire() -- Instant, while the network call is pending.
-
+    equipmentChanged:Fire()
     task.spawn(function()
         local startedAt = os.clock()
         local success, response = pcall(function()
@@ -128,30 +123,26 @@ local function send(action)
             else
                 return moveRemote:InvokeServer({
                     FromBag = action.FromBag, FromSlot = action.FromSlot,
-                    ToBag = action.ToBag, ToSlot = action.ToSlot,
-                })
+                    ToBag = action.ToBag, ToSlot = action.ToSlot })
             end
         end)
-        local accepted = success and type(response) == "table"
-            and response.Ok == true
+        local accepted = success and type(response) == "table" and response.Ok == true
         local snap = accepted and normalizeBag(response.Bag)
         local hasEquipment = action.Kind == "Move"
             or (accepted and type(response.Equipment) == "table")
         if snap then
             confirmedBag = snap
-            if action.Kind ~= "Move" and hasEquipment then
-                confirmedEquipment = response.Equipment
-            end
+            if action.Kind ~= "Move" and hasEquipment then confirmedEquipment = response.Equipment end
         end
         pending = nil
         revision += 1
         bagChanged:Fire()
-        equipmentChanged:Fire() -- Confirm or undo the predicted local move.
+        equipmentChanged:Fire()
         local ms = math.floor((os.clock() - startedAt) * 1000 + 0.5)
-        print("[Lumia - Equipment Client] " .. action.Kind .. " server reply " .. ms .. "ms")
-        if not accepted or not snap or not hasEquipment then
-            needsRefresh:Fire()
+        if IS_STUDIO then
+            print("[Lumia - Equipment Client] " .. action.Kind .. " reply " .. ms .. "ms")
         end
+        if not accepted or not snap or not hasEquipment then needsRefresh:Fire() end
         local message
         if accepted then
             message = action.Kind == "Move" and "Bag item moved"
@@ -162,8 +153,7 @@ local function send(action)
             message = type(response) == "table"
                 and tostring(response.Error or "Request rejected") or "No server response"
         end
-        completed:Fire(accepted, message,
-            action.Kind == "Unequip" and "Equipment" or "Bag")
+        completed:Fire(accepted, message, action.Kind == "Unequip" and "Equipment" or "Bag")
     end)
     return true
 end
@@ -186,8 +176,7 @@ function EquipmentClient.RequestMoveBag(fromBag, fromSlot, toBag, toSlot)
     if type(fromBag) ~= "number" or type(fromSlot) ~= "number"
         or type(toBag) ~= "number" or type(toSlot) ~= "number" then
         return false, "Invalid bag move" end
-    if fromBag == toBag and fromSlot == toSlot then
-        return false, "Already in that slot" end
+    if fromBag == toBag and fromSlot == toSlot then return false, "Already in that slot" end
     return send({ Kind = "Move", FromBag = fromBag, FromSlot = fromSlot,
         ToBag = toBag, ToSlot = toSlot })
 end

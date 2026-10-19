@@ -1,7 +1,6 @@
 -- REALMS OF LUMIA
 -- ITEM DEFINITIONS
--- Shared item statistics and properties.
--- No 3D model construction here.
+-- Stage 1 patch: GearCatalog merge moved to module load (hot path fix).
 
 local ItemDefinitions = {}
 
@@ -18,7 +17,7 @@ ItemDefinitions.Definitions = {
     FieldPotion = { Id = "FieldPotion", DisplayName = "Herbal Restorative",
         Type = "Potion", Rarity = "Common", CanBeDropped = true,
         Heal = 35, SellValue = 9 },
-    ForgedSword = { Id = "ForgedSword", DisplayName = "Wayfarer's Blade",
+    ForgedSword = { Id = "ForgedSword", DisplayName = "Wayfarer Blade",
         Type = "Weapon", SubType = "OneHandSword", Rarity = "Uncommon",
         RequiredLevel = 2, Damage = 20, Range = 7, Cooldown = 0.5,
         HitDelay = 0.18, AnimationClass = "OneHandSword", ModelId = "RustySword",
@@ -35,43 +34,45 @@ ItemDefinitions.Definitions = {
     RustySword = {
         Id = "RustySword",
         DisplayName = "Rusty Adventurer Sword",
-
         Type = "Weapon",
         SubType = "OneHandSword",
         Rarity = "Common",
-
         RequiredLevel = 1,
-
         Damage = 15,
         Range = 7,
         Cooldown = 0.5,
-        HitDelay = 0.18, -- Earlier server contact check to reduce sound lag (cut peaks around 0.23 s).
-
+        HitDelay = 0.18,
         AnimationClass = "OneHandSword",
-
         ModelId = "RustySword",
-
         CanBeDropped = false,
     },
-
 }
 
-function ItemDefinitions.Get(itemId)
-    if type(itemId) ~= "string" then
-        return nil
+-- Stage 1: merge GearCatalog ONCE at module load (was: on every Get call).
+-- Guard against load-order issues using FindFirstChild + pcall, no yielding wait.
+do
+    local shared = script.Parent.Parent
+    local commerce = shared:FindFirstChild("Commerce")
+    local gearScript = commerce and commerce:FindFirstChild("GearCatalog")
+    if gearScript then
+        local ok, GearCatalog = pcall(function() return require(gearScript) end)
+        if ok and type(GearCatalog) == "table" and type(GearCatalog.Items) == "table" then
+            for itemId, definition in pairs(GearCatalog.Items) do
+                if ItemDefinitions.Definitions[itemId] == nil then
+                    ItemDefinitions.Definitions[itemId] = definition
+                end
+            end
+        else
+            warn("[Lumia - ItemDefinitions] GearCatalog require failed at load: " .. tostring(GearCatalog))
+        end
+    else
+        warn("[Lumia - ItemDefinitions] GearCatalog not found at load; catalog items will not be resolvable")
     end
-
-    local GearCatalog = require(script.Parent.Parent:WaitForChild("Commerce"):WaitForChild("GearCatalog"))
-for itemId, definition in pairs(GearCatalog.Items) do
-    ItemDefinitions.Definitions[itemId] = definition
 end
 
-return ItemDefinitions.Definitions[itemId]
-end
-
-local GearCatalog = require(script.Parent.Parent:WaitForChild("Commerce"):WaitForChild("GearCatalog"))
-for itemId, definition in pairs(GearCatalog.Items) do
-    ItemDefinitions.Definitions[itemId] = definition
+function ItemDefinitions.Get(itemId)
+    if type(itemId) ~= "string" then return nil end
+    return ItemDefinitions.Definitions[itemId]
 end
 
 return ItemDefinitions
