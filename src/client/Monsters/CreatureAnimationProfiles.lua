@@ -21,12 +21,12 @@ local Profiles = {
             Tail = "TailJoint",
         },
         Walk = {
-            Frequency = 1.7,       -- complete gait cycles per second
-            LegPitch = 0.38,      -- radians
-            PawPitch = 0.16,
-            HeadPitch = 0.035,
-            TailYaw = 0.07,
-            MinSpeed = 0.7,
+            Frequency = 1.5,       -- complete gait cycles per second
+            LegPitch = 0.55,      -- radians
+            PawPitch = 0.28,
+            HeadPitch = 0.06,
+            TailYaw = 0.12,
+            MinSpeed = 0.5,
         },
         Attack = {
             Duration = 0.45,     -- seconds; purely visual

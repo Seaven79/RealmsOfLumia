@@ -32,7 +32,7 @@ local function equipped(profile)
     local indexed = {}
     local inv = profile.Inventory or {}
     for _, record in ipairs(inv.Items or {}) do
-        if type(record) == "table" then indexed[record.InstanceId] = record.ItemId end
+        if type(record) == "table" and type(record.InstanceId) == "string" then indexed[record.InstanceId] = record.ItemId end
     end
     local current = {}
     local signature = {}

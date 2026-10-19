@@ -49,6 +49,12 @@ local function rigFor(model)
     if type(rigName) ~= "string" or rigName == "" then
         rigName = model:GetAttribute("MonsterId")
     end
+    -- Fallback: if no profile for this MonsterId, use ForestWolf
+    if type(rigName) == "string" and not Profiles[rigName] then
+        if rigName:match("Wolf") or rigName:match("Stalker") or rigName:match("Guardian") then
+            rigName = "ForestWolf"
+        end
+    end
     return type(rigName) == "string" and Profiles[rigName] or nil
 end
 

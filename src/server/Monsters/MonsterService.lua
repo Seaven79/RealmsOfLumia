@@ -150,6 +150,9 @@ function MonsterService:SpawnMonster(monsterId, position, managedSpawn)
         .. definition.Level .. "]"
 
     humanoid.BreakJointsOnDeath = false
+    -- Destroy Animator so it doesn't fight procedural Motor6D leg animation
+    local animator = humanoid:FindFirstChildOfClass("Animator")
+    if animator then animator:Destroy() end
 
     root.Anchored = false
     model.PrimaryPart = root

@@ -12,7 +12,7 @@ MonsterNavigation.__index = MonsterNavigation
 
 local REPATH_SECONDS = 1.35
 local REPATH_MOVE_DISTANCE = 3.5
-local WAYPOINT_REACHED = 2.3
+local WAYPOINT_REACHED = 4.0
 local MAX_GROUND_CHANGE = 5.5
 local MAX_STEP_CHANGE = 3.8
 local MOVE_REFRESH = 0.40
@@ -142,6 +142,10 @@ function MonsterNavigation:SetGoal(position, intent)
 end
 
 function MonsterNavigation:_requestPath(now)
+    -- Fallback: if computing or waiting for a path, walk directly toward goal
+    if self.Goal and not self.Route and not self.Destroyed then
+        self.Humanoid:MoveTo(self.Goal)
+    end
     if self.Destroyed or self.Computing or not self.Goal or now < self.NextCompute then
         return
     end
@@ -227,8 +231,9 @@ function MonsterNavigation:Step(now)
         return
     end
 
-    if now - self.LastMove >= MOVE_REFRESH then
+    if self.LastMoveTarget ~= current or now - self.LastMove >= 0.8 then
         self.LastMove = now
+        self.LastMoveTarget = current
         self.Humanoid:MoveTo(current.Position)
     end
 end

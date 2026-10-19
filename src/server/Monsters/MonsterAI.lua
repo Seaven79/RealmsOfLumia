@@ -11,10 +11,10 @@ local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChil
 
 local MonsterAI = {}
 
-local MIN_STANDOFF = 6.2
+local MIN_STANDOFF = 4.5
 local MAX_STANDOFF = 11 -- Explicitly configured large creatures can stand farther.
-local DEFAULT_MAX_STANDOFF = 7.0 -- Keep regular mobs inside the current sword reach.
-local MELEE_CONTACT_MARGIN = 0.7
+local DEFAULT_MAX_STANDOFF = 5.5 -- Keep regular mobs inside the current sword reach.
+local MELEE_CONTACT_MARGIN = 1.5
 local CHASE_BAND = 0.65
 local RETREAT_BAND = 1.2
 local MELEE_AI_TICK = 0.18
@@ -215,7 +215,7 @@ function MonsterAI.Run(model, definition, home)
                 elseif distance < retreatDistance and visible then
                     state = "Reposition"
                     updateFacing(humanoid, root, targetRoot, true)
-                    humanoid.WalkSpeed = math.min(definition.WalkSpeed, 7)
+                    humanoid.WalkSpeed = math.min(definition.WalkSpeed, 10)
                     navigator:SetGoal(
                         position - direction * math.max(2, standOff - distance + 0.7),
                         "Retreat"
@@ -239,7 +239,7 @@ function MonsterAI.Run(model, definition, home)
                     state = "Chase"
                     updateFacing(humanoid, root, targetRoot, false)
                     humanoid.WalkSpeed = distance < standOff + 3
-                        and math.min(definition.ChaseSpeed, 7) or definition.ChaseSpeed
+                        and math.min(definition.ChaseSpeed, 10) or definition.ChaseSpeed
                     navigator:SetGoal(targetRoot.Position - direction * standOff, "Chase")
                     navigator:Step(now)
                 end
