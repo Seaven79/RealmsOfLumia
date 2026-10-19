@@ -24,3 +24,5 @@ sourcemap.json
 LumiaBackups/
 LumiaPatchBackup-*/
 _LumiaBackups/
+
+_deleted-test/
