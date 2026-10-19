@@ -303,7 +303,7 @@ local function render(data)
     tracker.Visible=q.Active==true
     trackerTitle.Text=q.Name
     local objectiveName=(q.Kind=="Kill" and "Creatures defeated" or
-        (q.Kind=="Collect" and "Runestone fragments collected" or "Clues investigated"))
+        (q.Kind=="Collect" and "Runestone fragments collected" or (q.Kind=="Ritual" and "Runes activated" or "Clues investigated")))
     trackerObjective.Text=string.format("%s: %d/%d",objectiveName,q.Progress,q.Count)
     if q.ReadyToTurnIn then trackerObjective.Text="Objective complete — turn in" end
     abandonButton.Visible=q.Active==true
@@ -312,7 +312,7 @@ local function render(data)
         objective.Text="Find a character offering a new adventure. Look for a golden ! in the world."
     else
         local step=(q.Kind=="Kill" and "Creatures defeated" or
-        (q.Kind=="Collect" and "Runestone fragments collected" or "Clues investigated"))
+        (q.Kind=="Collect" and "Runestone fragments collected" or (q.Kind=="Ritual" and "Runes activated" or "Clues investigated")))
         local progressLine=string.format("%s: %d / %d",step,q.Progress,q.Count)
         objective.Text=q.ReadyToTurnIn and (progressLine.."\nCompleted — return to the quest giver.")
             or (progressLine.."\nSearch the world and uncover the answer.")
@@ -409,7 +409,7 @@ local function openDialogue(data)
             "Return when your task is finished.")
     end
     local objectiveName=(q.Kind=="Kill" and "Creatures defeated" or
-        (q.Kind=="Collect" and "Runestone fragments collected" or "Clues investigated"))
+        (q.Kind=="Collect" and "Runestone fragments collected" or (q.Kind=="Ritual" and "Runes activated" or "Clues investigated")))
     dialogObjective.Text=string.format("%s: %d / %d",objectiveName,q.Progress,q.Count)
     dialogReward.Text=string.format("%d XP    |    %s",q.XP or 0,Currency.FormatShort(q.Gold or 0))
     if not q.Active then
@@ -570,11 +570,12 @@ local function targetLabel()
     if target:GetAttribute("LumiaInteractType")~="QuestClue" then return nil end
     if (root.Position-target.Position).Magnitude>11 then return nil end
     local current=snapshot and snapshot.Quest
-    if not current or not current.Active or current.ReadyToTurnIn or current.Kind~="Explore" then return nil end
+    if not current or not current.Active or current.ReadyToTurnIn or (current.Kind~="Explore" and current.Kind~="Ritual") then return nil end
     if target:GetAttribute("QuestZone")~=current.Zone then return nil end
     local id=target:GetAttribute("QuestMarkerId")
     if current.Seen and current.Seen[id] then return nil end
-    return "EXAMINE"
+    if current.Kind=="Ritual" and target:GetAttribute("QuestOrder") ~= current.Progress+1 then return nil end
+    return current.Kind=="Ritual" and "CHANNEL" or "EXAMINE"
 end
 -- v7 subtle active-clue shimmer. Local-only and distance-gated: no quest GPS.
 -- A clue is highlighted ONLY if it belongs to the current active explore quest
@@ -587,10 +588,11 @@ local function updateClueGlow()
     for _,clue in ipairs(CollectionService:GetTagged("LumiaQuestInteractable")) do
         if clue:IsA("BasePart") and clue:IsDescendantOf(workspace) then
             local id=clue:GetAttribute("QuestMarkerId")
-            local relevant=q and q.Active and not q.ReadyToTurnIn and q.Kind=="Explore"
+            local relevant=q and q.Active and not q.ReadyToTurnIn and (q.Kind=="Explore" or q.Kind=="Ritual")
                 and q.Zone==clue:GetAttribute("QuestZone")
                 and not (q.Seen and q.Seen[id])
-            local near=root and (root.Position-clue.Position).Magnitude<=35
+                and (q.Kind~="Ritual" or clue:GetAttribute("QuestOrder")==q.Progress+1)
+            local near=root and (root.Position-clue.Position).Magnitude<=(id=="ruins_3" and 110 or 65)
             local enabled=(relevant and near)==true
             local model=clue:FindFirstAncestorOfClass("Model")
             if enabled and model then
@@ -602,7 +604,7 @@ local function updateClueGlow()
                     highlight.DepthMode=Enum.HighlightDepthMode.Occluded
                     highlight.FillColor=Color3.fromRGB(241,207,114)
                     highlight.OutlineColor=Color3.fromRGB(241,202,99)
-                    highlight.FillTransparency=0.92
+                    highlight.FillTransparency=0.86
                     highlight.OutlineTransparency=0.56
                     highlight.Parent=model
                     clueHighlights[clue]=highlight

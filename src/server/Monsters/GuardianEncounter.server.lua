@@ -55,15 +55,17 @@ Life.Died.Event:Connect(function(model,monsterId)
     else
         warn("[Lumia V17] Guardian died without two eligible contributors; no quest or achievement rewards")
     end
+    local factor=tonumber(model:GetAttribute("LumiaRespawnFactor")) or 1
     active=nil
-    nextSpawn=os.clock()+45
+    nextSpawn=os.clock()+math.clamp(45*factor,2,3600)
 end)
 task.spawn(function()
     while anchor.Parent do
         local adventurers=group()
         if active and not active.Parent then
+            local factor=tonumber(active:GetAttribute("LumiaRespawnFactor")) or 1
             active=nil
-            nextSpawn=os.clock()+40
+            nextSpawn=os.clock()+math.clamp(40*factor,2,3600)
         end
         if active then
             if #adventurers==0 and not desertedSince then desertedSince=os.clock() end
@@ -71,12 +73,13 @@ task.spawn(function()
             if desertedSince and os.clock()-desertedSince>45 then
                 local abandoned=active
                 active=nil
+                local factor=tonumber(abandoned:GetAttribute("LumiaRespawnFactor")) or 1
                 abandoned:Destroy()
-                nextSpawn=os.clock()+12
+                nextSpawn=os.clock()+math.clamp(12*factor,2,3600)
                 desertedSince=nil
             end
         elseif os.clock()>=nextSpawn and #adventurers==2 then
-            local boss=Monsters:SpawnMonster("ThornboundGuardian",anchor.Position,false)
+            local boss=Monsters:SpawnMonster("ThornboundGuardian",anchor.Position,true)
             if boss then
                 boss:SetAttribute("LumiaBossEncounter",true)
                 pcall(function()boss:ScaleTo(1.45)end)

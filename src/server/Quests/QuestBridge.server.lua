@@ -270,17 +270,90 @@ if humanoid then
     end)
 end
 
--- Realistic, low-key world props instead of luminous waypoints or quest arrows.
--- They remain in the landscape for other players, but clients only expose a
--- mouseover star for an ACTIVE, relevant, not-yet-visited quest clue.
+-- Ground-safe marker placement. Search nearby open spots rather than spawning
+-- ruins beneath trees/cabins. Coordinates and marker IDs remain deterministic.
+local function safeClueSpot(x,z)
+    local offsets={
+        {0,0},{5,0},{-5,0},{0,5},{0,-5},{8,8},{-8,-8},
+        {9,-7},{-9,7},{13,0},{-13,0},{0,13},{0,-13},
+    }
+    local ignored={folder}
+    local monsterFolder=Workspace:FindFirstChild("LumiaMonsters")
+    if monsterFolder then ignored[#ignored+1]=monsterFolder end
+    local cast=RaycastParams.new()
+    cast.FilterType=Enum.RaycastFilterType.Exclude
+    cast.FilterDescendantsInstances=ignored
+    cast.RespectCanCollide=true
+    local overlap=OverlapParams.new()
+    overlap.FilterType=Enum.RaycastFilterType.Exclude
+    overlap.FilterDescendantsInstances=ignored
+    overlap.MaxParts=32
+    for _,offset in ipairs(offsets) do
+        local candidateX=x+offset[1]
+        local candidateZ=z+offset[2]
+        if grass and grass:IsA("BasePart") then
+            local localPos=grass.CFrame:PointToObjectSpace(Vector3.new(candidateX,grass.Position.Y,candidateZ))
+            if math.abs(localPos.X)>grass.Size.X*0.5-4 or math.abs(localPos.Z)>grass.Size.Z*0.5-4 then
+                continue
+            end
+        end
+        local hit=Workspace:Raycast(Vector3.new(candidateX,170,candidateZ),Vector3.new(0,-340,0),cast)
+        if hit and hit.Normal.Y>0.85 and (hit.Instance==grass or hit.Instance:IsA("Terrain")) then
+            local box=Workspace:GetPartBoundsInBox(CFrame.new(hit.Position+Vector3.new(0,2.3,0)),
+                Vector3.new(5.4,4.6,5.4),overlap)
+            local clear=true
+            for _,obj in ipairs(box) do
+                if obj~=grass and obj.CanCollide and obj.Transparency<0.98 then
+                    clear=false;break
+                end
+            end
+            if clear then return hit.Position end
+        end
+    end
+    -- Never silently place inaccessible clues: log a diagnostic and use the
+    -- projected real ground surface as a fallback if the whole area is occupied.
+    warn("[Lumia V19] No clear marker spot near",x,z,". Check surrounding map props.")
+    local pos=grass and grass:IsA("BasePart") and grass.Position or Vector3.zero
+    return Vector3.new(x,pos.Y+(grass and grass.Size.Y*0.5 or 0),z)
+end
+
+-- Rune markers are still server validated; the display is a client-only quest hint.
+local orderByZone={}
 for idx,record in ipairs(Config.Markers) do
-    local x=center.X+record.X
-    local z=center.Z+record.Z
-    local floorY=groundAt(x,z)
+    orderByZone[record.Zone]=(orderByZone[record.Zone] or 0)+1
+    local origin=safeClueSpot(center.X+record.X,center.Z+record.Z)
+    local x,z,floorY=origin.X,origin.Z,origin.Y
     local model=Instance.new("Model")
     model.Name="Clue_"..record.Id; model.Parent=folder
     local clue
-    if idx%3==1 then
+    if record.Id=="ruins_3" then
+        -- A real visible arch, not a little ambiguous post hidden by foliage.
+        local stone=Color3.fromRGB(111,113,122)
+        part("GuardianArchKeystone",Vector3.new(5.6,1.4,1.8),stone,Enum.Material.Slate,
+            CFrame.new(x,floorY+6.8,z),model)
+        -- The clickable tablet is at eye height, not on the top of the arch.
+        clue=part("GuardianArchTablet",Vector3.new(2.4,2.6,.55),
+            Color3.fromRGB(92,117,126),Enum.Material.Slate,
+            CFrame.new(x,floorY+2.6,z),model)
+        local face=part("GuardianArchGlyph",Vector3.new(1.8,1.9,.14),
+            Color3.fromRGB(111,197,207),Enum.Material.Neon,
+            CFrame.new(x,floorY+2.6,z-.35),model)
+        face.Transparency=.45
+        for _,side in ipairs({-1,1}) do
+            part("GuardianArchPillar",Vector3.new(1.25,6.1,1.8),stone,Enum.Material.Slate,
+                CFrame.new(x+side*2.4,floorY+3.05,z),model)
+        end
+        local rune=part("GuardianArchRunes",Vector3.new(2.0,0.32,1.25),
+            Color3.fromRGB(139,207,219),Enum.Material.Neon,CFrame.new(x,floorY+7.55,z),model)
+        rune.Transparency=0.22
+    elseif record.Zone=="CrossingWards" or record.Zone=="CampBeacons" or record.Zone=="AncientSeals" then
+        clue=part("RitualFocus",Vector3.new(2.1,2.2,2.1),
+            record.Zone=="CampBeacons" and Color3.fromRGB(133,80,44) or Color3.fromRGB(101,113,130),
+            Enum.Material.Slate,CFrame.new(x,floorY+1.1,z),model)
+        part("RitualRune",Vector3.new(1.4,0.2,1.4),
+            record.Zone=="CampBeacons" and Color3.fromRGB(243,161,66) or Color3.fromRGB(111,203,192),
+            Enum.Material.Neon,CFrame.new(x,floorY+2.25,z),model)
+    elseif idx%3==1 then
         clue=part("OldMarker",Vector3.new(1.5,2.1,0.5),Color3.fromRGB(120,99,68),Enum.Material.Wood,
             CFrame.new(x,floorY+1.1,z)*CFrame.Angles(0,math.rad(18),0),model)
         part("MarkerCap",Vector3.new(1.7,0.28,0.75),Color3.fromRGB(86,67,46),Enum.Material.Wood,
@@ -294,6 +367,7 @@ for idx,record in ipairs(Config.Markers) do
     end
     clue:SetAttribute("LumiaInteractType","QuestClue")
     clue:SetAttribute("QuestMarkerId",record.Id)
+    clue:SetAttribute("QuestOrder",orderByZone[record.Zone])
     clue:SetAttribute("QuestZone",record.Zone)
     clue:SetAttribute("ClueLabel",record.Label)
     CollectionService:AddTag(clue,"LumiaQuestInteractable")
@@ -303,6 +377,25 @@ for idx,record in ipairs(Config.Markers) do
         Enum.Material.SmoothPlastic,CFrame.new(x,floorY+1,z),model)
     noMob.Transparency=1; noMob.CanQuery=false; noMob.CastShadow=false
     CollectionService:AddTag(model,"LumiaNoMobHouse")
+    if record.Id=="ruins_3" then
+        local gui=Instance.new("BillboardGui")
+        gui.Name="GuardianArchLandmark"
+        gui.Size=UDim2.fromOffset(235,40)
+        gui.StudsOffsetWorldSpace=Vector3.new(0,2.1,0)
+        gui.MaxDistance=100
+        gui.AlwaysOnTop=false
+        gui.Parent=clue
+        local label=Instance.new("TextLabel")
+        label.Name="Name"
+        label.Size=UDim2.fromScale(1,1)
+        label.BackgroundTransparency=1
+        label.Text="GUARDIAN'S ARCH"
+        label.Font=Enum.Font.Garamond
+        label.TextSize=22
+        label.TextColor3=Color3.fromRGB(227,206,161)
+        label.TextStrokeTransparency=0.22
+        label.Parent=gui
+    end
 end
 -- A clue requires a REAL server-authoritative uninterrupted five-second cast.
 -- Clients only display progress. Never trust client clocks or progress messages.

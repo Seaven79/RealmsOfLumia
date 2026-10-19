@@ -8,6 +8,7 @@ local Shared = ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local ProgressionConfig = require(Shared:WaitForChild("Progression"):WaitForChild("ProgressionConfig"))
 local MonsterConfig = require(Shared:WaitForChild("Monsters"):WaitForChild("MonsterConfig"))
 local Settings = require(script.Parent:WaitForChild("BalanceSettings"))
+local CurveLab = require(script.Parent:WaitForChild("CurveLabService"))
 
 local BalanceService = {}
 BalanceService.Changed = Instance.new("BindableEvent")
@@ -72,10 +73,15 @@ function BalanceService:EnsureLoaded()
     return persistenceAvailable
 end
 
-function BalanceService:GetRequiredXP(level)
+function BalanceService:GetBaseRequiredXP(level)
     self:EnsureLoaded()
     if type(level)~="number" then return nil end
     return config.LevelXP[tostring(level)] or ProgressionConfig.GetRequiredXP(level)
+end
+
+function BalanceService:GetRequiredXP(level)
+    local baseline = self:GetBaseRequiredXP(level)
+    return CurveLab:Adjust("LevelXP", level, baseline, Settings.MaxXPPerLevel)
 end
 
 function BalanceService:GetQuestXP(tier)
@@ -182,5 +188,10 @@ function BalanceService:StartCrossServerSync()
         if not ok then warn("[Lumia - Balance Service] Messaging subscription unavailable: "..tostring(err)) end
     end)
 end
+
+-- Refresh player XP bar when a temporary curve test starts/stops.
+CurveLab.Changed.Event:Connect(function()
+    BalanceService.Changed:Fire()
+end)
 
 return BalanceService

@@ -15,6 +15,7 @@ local lumia = ReplicatedStorage:WaitForChild("Lumia")
 local shared = lumia:WaitForChild("Shared")
 local ProgressionConfig = require(shared:WaitForChild("Progression"):WaitForChild("ProgressionConfig"))
 local BalanceService = require(services:WaitForChild("Admin"):WaitForChild("BalanceService"))
+local CurveLab = require(services:WaitForChild("Admin"):WaitForChild("CurveLabService"))
 local LootConfig = require(shared:WaitForChild("Loot"):WaitForChild("LootConfig"))
 
 local network = lumia:FindFirstChild("ProgressionNetwork")
@@ -79,7 +80,14 @@ Events.Died.Event:Connect(function(model, monsterId)
         return
     end
 
-    local xp = BalanceService:GetMonsterXP(monsterId)
+    -- Kill XP was snapshotted when this monster spawned.
+    -- Legacy monsters without this attribute use the original calculation.
+    local monsterLevel = model:GetAttribute("MonsterLevel") or 1
+    local xp = model:GetAttribute("LumiaSpawnXP")
+    if type(xp) ~= "number" then
+        xp = CurveLab:Adjust("KillXP", monsterLevel,
+            BalanceService:GetMonsterXP(monsterId), 1000000)
+    end
     if type(xp) ~= "number" or xp % 1 ~= 0 or xp < 1 or xp > 1000000 then
         return
     end
@@ -130,10 +138,14 @@ Events.Died.Event:Connect(function(model, monsterId)
                 data.LevelsGained=details.LevelsGained or 0
                 changed:FireClient(recipient,data)
             end
-            local mobConfig=require(shared:WaitForChild("Monsters"):WaitForChild("MonsterConfig"))
-            local base=mobConfig.Definitions[monsterId]
-            local coins=base and base.GoldReward or 0
-            if type(coins)=="number" and coins>=1 and coins<=100 and coins%1==0 then
+            local coins = model:GetAttribute("LumiaSpawnGold")
+            if type(coins) ~= "number" then
+                local mobConfig = require(shared:WaitForChild("Monsters"):WaitForChild("MonsterConfig"))
+                local base = mobConfig.Definitions[monsterId]
+                coins = CurveLab:Adjust("Gold", monsterLevel,
+                    base and base.GoldReward or 0, 1000000)
+            end
+            if type(coins)=="number" and coins>=1 and coins<=1000000 and coins%1==0 then
                 ProgressionService:AddGold(recipient, coins)
             end
             print(string.format("[Lumia XP] %s earned %d XP for %s",recipient.Name,xp,monsterId))

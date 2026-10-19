@@ -4,6 +4,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 -- Monster type data comes from a server-only persisted balance service.
 -- Keep MonsterAI on a per-spawn snapshot so existing AI is not disturbed.
 local MobTuning = require(script.Parent.Parent:WaitForChild("Admin"):WaitForChild("MobTuningService"))
+local Admin = script.Parent.Parent:WaitForChild("Admin")
+local CurveLab = require(Admin:WaitForChild("CurveLabService"))
+local Balance = require(Admin:WaitForChild("BalanceService"))
+local MonsterConfig = require(ReplicatedStorage:WaitForChild("Lumia")
+    :WaitForChild("Shared"):WaitForChild("Monsters"):WaitForChild("MonsterConfig"))
 
 local MonsterAI = require(
     script.Parent:WaitForChild("MonsterAI")
@@ -43,15 +48,17 @@ local function scheduleRemoval(self, model, monsterId, fullyLooted)
         local pointId = model:GetAttribute("SpawnPointId")
         local managed = model:GetAttribute("ManagedSpawn") == true
         local origin = spawnOrigins[model]
+        local respawnFactor = tonumber(model:GetAttribute("LumiaRespawnFactor")) or 1
         cleanupGeneration[model] = nil
         spawnOrigins[model] = nil
         model:Destroy()
         -- Start the timer *after* the model disappears, never at death.
-        LifecycleEvents.CorpseRemoved:Fire(model, pointId, monsterId, fullyLooted)
+        LifecycleEvents.CorpseRemoved:Fire(model, pointId, monsterId, fullyLooted, respawnFactor)
         if started and not managed and origin then
             local respawnKey = fullyLooted and "RespawnAfterLootedSeconds"
                 or "RespawnAfterUnlootedSeconds"
-            task.delay(LifecycleConfig.Get(monsterId, respawnKey), function()
+            task.delay(math.clamp(LifecycleConfig.Get(monsterId, respawnKey)
+                * respawnFactor, 2, 3600), function()
                 if started then self:SpawnMonster(monsterId, origin, false) end
             end)
         end
@@ -98,6 +105,7 @@ end
 
 function MonsterService:SpawnMonster(monsterId, position, managedSpawn)
     local definition = MobTuning:GetDefinition(monsterId)
+    if definition then definition = CurveLab:ApplyMonsterDefinition(definition) end
 
     if not definition then
         warn("[Lumia - Monster Service] Unknown monster: " .. tostring(monsterId))
@@ -116,6 +124,16 @@ function MonsterService:SpawnMonster(monsterId, position, managedSpawn)
     model:SetAttribute("ManagedSpawn", managedSpawn == true)
     model:SetAttribute("MonsterLevel", definition.Level)
     model:SetAttribute("AggroType", definition.AggroType)
+
+    -- Lock rewards to this spawn so publishing new curves mid-fight
+    -- cannot change its XP/gold. Mob types keep their original baseline.
+    local baseXP = Balance:GetMonsterXP(monsterId) or 0
+    local baseGold = (MonsterConfig.Definitions[monsterId] or {}).GoldReward or 0
+    model:SetAttribute("LumiaSpawnXP", CurveLab:Adjust("KillXP", definition.Level, baseXP, 1000000))
+    model:SetAttribute("LumiaSpawnGold", CurveLab:Adjust("Gold", definition.Level, baseGold, 1000000))
+    -- Spawn-time snapshots. Live config changes never mutate living monsters.
+    model:SetAttribute("LumiaDefenseFactor", CurveLab:GetDefenseFactor(definition.Level))
+    model:SetAttribute("LumiaRespawnFactor", CurveLab:GetRespawnFactor(definition.Level))
 
     local humanoid = model:FindFirstChildOfClass("Humanoid")
     local root = model:FindFirstChild("HumanoidRootPart")

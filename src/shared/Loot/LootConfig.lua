@@ -5,6 +5,18 @@ return {
     OpenDistance = 12,
     HitCreditLifetimeSeconds = 10,
     Monsters = {
+        OldRoadStalker = {DropCount=1, Drops={
+            {ItemId="WolfTornFur",Weight=50},{ItemId="WolfBrokenFang",Weight=30},
+            {ItemId="WolfMattedHide",Weight=20},
+        }},
+        CreekFenWolf = {DropCount=1, Drops={
+            {ItemId="WolfTornFur",Weight=25},{ItemId="WolfMattedHide",Weight=45},
+            {ItemId="WolfDullClaw",Weight=30},
+        }},
+        StoneboundWolf = {DropCount=2, Drops={
+            {ItemId="WolfBrokenFang",Weight=30},{ItemId="WolfMattedHide",Weight=25},
+            {ItemId="WolfDullClaw",Weight=45},
+        }},
         ThornboundGuardian = {DropCount=2,Drops={{ItemId="WolfDullClaw",Weight=40},{ItemId="WolfBrokenFang",Weight=60}}},
         DireForestWolf = {
             DropCount = 1,

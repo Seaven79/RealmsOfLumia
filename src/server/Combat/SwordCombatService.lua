@@ -555,8 +555,13 @@ function SwordCombatService:_onAttack(player)
             local hitKey="LumiaBossHit_"..player.UserId
             model:SetAttribute(hitKey,(model:GetAttribute(hitKey) or 0)+1)
         end
-        targetHumanoid:TakeDamage(damage)
-        hitRemote:FireClient(player, model, damage)
+        -- Defense is a spawn-time monster attribute written only by MonsterService.
+        -- Factor 2 gives half incoming weapon damage; 1 leaves existing balance.
+        local defense = tonumber(model:GetAttribute("LumiaDefenseFactor")) or 1
+        defense = math.clamp(defense, 0.25, 8)
+        local finalDamage = math.max(1, math.round(damage / defense))
+        targetHumanoid:TakeDamage(finalDamage)
+        hitRemote:FireClient(player, model, finalDamage)
 
         print(
             "[Lumia - Sword Combat Service] "
@@ -564,7 +569,7 @@ function SwordCombatService:_onAttack(player)
                 .. " hit "
                 .. model.Name
                 .. " for "
-                .. tostring(damage)
+                .. tostring(finalDamage)
                 .. " damage"
         )
     end)

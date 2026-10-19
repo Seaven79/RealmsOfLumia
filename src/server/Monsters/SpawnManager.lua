@@ -325,7 +325,7 @@ function SpawnManager:Init()
             point.outsideSince = nil
         end
     end)
-    LifecycleEvents.CorpseRemoved.Event:Connect(function(model, pointId, monsterId, fullyLooted)
+    LifecycleEvents.CorpseRemoved.Event:Connect(function(model, pointId, monsterId, fullyLooted, respawnFactor)
         local point = pointId and pointById[pointId]
         if not point or point.model ~= model then return end
         point.model = nil
@@ -334,7 +334,9 @@ function SpawnManager:Init()
         point.state = "Cooldown"
         local key = fullyLooted and "RespawnAfterLootedSeconds"
             or "RespawnAfterUnlootedSeconds"
-        local seconds = LifecycleConfig.Get(monsterId, key)
+        -- Use the defeated mob's SPAWN-TIME rate, not the current global rate.
+        local factor = tonumber(respawnFactor) or 1
+        local seconds = math.clamp(LifecycleConfig.Get(monsterId, key) * factor, 2, 3600)
         point.nextSpawn = os.clock() + seconds
         point.randomizeNext = true -- Respawns can relocate across the map.
         print("[Lumia - Spawn Manager] Corpse removed; " .. tostring(pointId)

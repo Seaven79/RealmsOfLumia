@@ -49,12 +49,13 @@ while folder.Parent do
     for anchor, entry in pairs(live) do
         local monster = entry.Model
         if monster and not monster.Parent then
+            local factor = tonumber(monster:GetAttribute("LumiaRespawnFactor")) or 1
             entry.Model = nil
-            entry.Next = os.clock() + 16
+            entry.Next = os.clock() + math.clamp(16 * factor, 2, 3600)
         end
         if not entry.Model and os.clock() >= entry.Next and near(anchor.Position, 110) then
             local success, created = pcall(Service.SpawnMonster, Service,
-                monsterId(anchor), anchor.Position, false)
+                monsterId(anchor), anchor.Position, true)
             if success and created then
                 entry.Model = created
                 addAppearance(created, anchor:GetAttribute("ZoneId"))
@@ -63,9 +64,10 @@ while folder.Parent do
             end
         elseif entry.Model and entry.Model:GetAttribute("InCombat") ~= true
             and not near(anchor.Position, 170) then
+            local factor = tonumber(entry.Model:GetAttribute("LumiaRespawnFactor")) or 1
             entry.Model:Destroy()
             entry.Model = nil
-            entry.Next = os.clock() + 6
+            entry.Next = os.clock() + math.clamp(6 * factor, 2, 3600)
         end
     end
     task.wait(2)

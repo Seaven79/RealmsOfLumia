@@ -23,6 +23,27 @@ MonsterConfig.Definitions = {
         RespawnDelay = 25, ExperienceReward = 17, GoldReward = 7,
     },
 
+    OldRoadStalker = {
+        DisplayName="Roadside Stalker", ModelId="ForestWolf", Level=2,
+        AggroType="Aggressive", MaxHealth=95, Damage=12,
+        WanderRadius=5, DetectionRadius=9, ChaseLimit=19,
+        AttackRange=4.1, AttackCooldown=2.4, WalkSpeed=7, ChaseSpeed=12,
+        RespawnDelay=22, ExperienceReward=5, GoldReward=3,
+    },
+    CreekFenWolf = {
+        DisplayName="Creek Fen Wolf", ModelId="ForestWolf", Level=3,
+        AggroType="Aggressive", MaxHealth=142, Damage=16,
+        WanderRadius=6, DetectionRadius=10, ChaseLimit=21,
+        AttackRange=4.4, AttackCooldown=2.4, WalkSpeed=8, ChaseSpeed=12,
+        RespawnDelay=25, ExperienceReward=6, GoldReward=4,
+    },
+    StoneboundWolf = {
+        DisplayName="Stonebound Watcher", ModelId="ForestWolf", Level=4,
+        AggroType="Aggressive", MaxHealth=192, Damage=21,
+        WanderRadius=5, DetectionRadius=10, ChaseLimit=20,
+        AttackRange=4.4, AttackCooldown=2.5, WalkSpeed=7, ChaseSpeed=11,
+        RespawnDelay=28, ExperienceReward=7, GoldReward=6,
+    },
     ForestWolf = {
         DisplayName = "Forest Wolf",
         Level = 1,

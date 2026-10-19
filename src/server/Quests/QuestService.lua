@@ -41,6 +41,12 @@ function Service:Snapshot(player)
     local profile, progress = state(player)
     if not profile then return {Ready=false, Message="Character still loading"} end
     local q,record = activeQuest(progress)
+    -- V19 migration: old kill objectives at these IDs cannot count as new rituals.
+    if q and q.Kind=="Ritual" and record and record.V19Ritual~=true then
+        record.Count=0
+        record.Seen={}
+        record.V19Ritual=true
+    end
     local finished = 0
     for _,entry in ipairs(Config.Quests) do
         if progress.CompletedQuests[entry.Id] then finished += 1 end
@@ -78,7 +84,7 @@ function Service:Accept(player)
     if not q then return false,"All quests completed" end
     if record then return false,"You already accepted this quest" end
     if (q.MinLevel or 1) > profile.Character.Level then return false,"Level too low for this quest" end
-    progress.ActiveQuests[q.Id]={Count=0, Seen={}}
+    progress.ActiveQuests[q.Id]={Count=0, Seen={}, V19Ritual=(q.Kind=="Ritual")}
     self:Notify(player)
     print("[Lumia - Quest Service] Accepted "..q.Id.." by "..player.Name)
     return true,"Quest accepted: "..q.Name
@@ -195,7 +201,7 @@ function Service:Advance(player,kind,key)
     if not q or not record or q.Kind~=kind then return end
     if (tonumber(record.Count) or 0)>=q.Count then return end
     if kind=="Kill" and q.MonsterId~=key then return end
-    if kind=="Explore" then
+    if kind=="Explore" or kind=="Ritual" then
         local marker
         for _,entry in ipairs(Config.Markers) do
             if entry.Id==key then marker=entry;break end
@@ -203,6 +209,14 @@ function Service:Advance(player,kind,key)
         if not marker or marker.Zone~=q.Zone then return end
         if type(record.Seen)~="table" then record.Seen={} end
         if record.Seen[key] then return end
+        -- Rituals must be activated in marker order, not by running to the last one.
+        if kind=="Ritual" then
+            local ordered={}
+            for _, site in ipairs(Config.Markers) do
+                if site.Zone==q.Zone then ordered[#ordered+1]=site.Id end
+            end
+            if ordered[(tonumber(record.Count) or 0)+1] ~= key then return end
+        end
         record.Seen[key]=true
     end
     record.Count=math.min(q.Count,(tonumber(record.Count) or 0)+1)
@@ -228,17 +242,33 @@ function Service:IsVisitAvailable(player,markerId)
     local _,progress=state(player)
     if not progress then return false end
     local q,record=activeQuest(progress)
-    if not q or not record or q.Kind~="Explore" or (tonumber(record.Count) or 0)>=q.Count then return false end
+    if not q or not record or (q.Kind~="Explore" and q.Kind~="Ritual") or (tonumber(record.Count) or 0)>=q.Count then return false end
     for _,entry in ipairs(Config.Markers) do
         if entry.Id==markerId and entry.Zone==q.Zone then
-            return type(record.Seen)~="table" or not record.Seen[markerId]
+            if type(record.Seen)=="table" and record.Seen[markerId] then return false end
+            if q.Kind=="Ritual" then
+                local index=0
+                for _, candidate in ipairs(Config.Markers) do
+                    if candidate.Zone==q.Zone then
+                        index+=1
+                        if candidate.Id==markerId then
+                            return index == (tonumber(record.Count) or 0)+1
+                        end
+                    end
+                end
+                return false
+            end
+            return true
         end
     end
     return false
 end
 function Service:Visit(player,markerId)
     if not self:IsVisitAvailable(player,markerId) then return false end
-    self:Advance(player,"Explore",markerId)
+    local _, progress=state(player)
+    local q=progress and activeQuest(progress)
+    if not q then return false end
+    self:Advance(player,q.Kind,markerId)
     return true
 end
 
