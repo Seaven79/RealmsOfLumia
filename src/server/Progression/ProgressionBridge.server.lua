@@ -115,14 +115,10 @@ Events.Died.Event:Connect(function(model, monsterId)
     -- This mirrors QuestService's co-op objective credit and prevents level gaps.
     local defeatedAt=model:GetPivot().Position
     local recipients={killer}
-    for _,other in ipairs(Players:GetPlayers()) do
-        if other~=killer then
-            local char=other.Character
-            local root=char and char:FindFirstChild("HumanoidRootPart")
-            local humanoid=char and char:FindFirstChildOfClass("Humanoid")
-            if root and humanoid and humanoid.Health>0
-                and (root.Position-defeatedAt).Magnitude<=36 then
-                table.insert(recipients,other)
+    for _,entry in ipairs(PlayerPositions:Roots()) do
+        if entry.Player~=killer then
+            if (entry.Position-defeatedAt).Magnitude<=36 then
+                table.insert(recipients,entry.Player)
             end
         end
     end

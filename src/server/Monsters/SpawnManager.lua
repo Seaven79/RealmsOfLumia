@@ -132,20 +132,9 @@ end
 
 local function getPlayerRoots()
     local roots = {}
-
-    for _, player in ipairs(Players:GetPlayers()) do
-        local character = player.Character
-        local root = character and
-            character:FindFirstChild("HumanoidRootPart")
-
-        local humanoid = character and
-            character:FindFirstChildOfClass("Humanoid")
-
-        if root and humanoid and humanoid.Health > 0 then
-            table.insert(roots, root)
-        end
+    for _, entry in ipairs(PlayerPositions:Roots()) do
+        table.insert(roots, entry.Root)
     end
-
     return roots
 end
 

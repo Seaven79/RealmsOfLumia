@@ -286,13 +286,11 @@ local function onDeath(self,model,monsterId)
     local killer=Players:GetPlayerByUserId(id)
     if not killer or not PlayerData:GetProfile(killer) then return end
     local origin=model:GetPivot().Position
-    for _,player in ipairs(Players:GetPlayers()) do
+    for _,entry in ipairs(PlayerPositions:Roots()) do
+        local player=entry.Player
         if player==killer then self:Advance(player,"Kill",monsterId)
         else
-            local character=player.Character
-            local root=character and character:FindFirstChild("HumanoidRootPart")
-            local humanoid=character and character:FindFirstChildOfClass("Humanoid")
-            if root and humanoid and humanoid.Health>0 and (root.Position-origin).Magnitude<=Config.CoopCreditRadius then
+            if (entry.Position-origin).Magnitude<=Config.CoopCreditRadius then
                 self:Advance(player,"Kill",monsterId)
             end
         end

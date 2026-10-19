@@ -13,15 +13,7 @@ if not points then
 end
 local live = {}
 local function near(position, radius)
-    for _, player in ipairs(Players:GetPlayers()) do
-        local c = player.Character
-        local h = c and c:FindFirstChildOfClass("Humanoid")
-        local root = c and c:FindFirstChild("HumanoidRootPart")
-        if root and h and h.Health > 0 and (root.Position-position).Magnitude <= radius then
-            return true
-        end
-    end
-    return false
+    return PlayerPositions:Within(position, radius)
 end
 local function monsterId(anchor)
     if anchor:GetAttribute("ZoneId") == "ThornwatchGlade" then

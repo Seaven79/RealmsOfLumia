@@ -36,17 +36,10 @@ local function aliveCharacter(player)
 end
 
 local function nearestPlayer(position, radius)
-    local nearest, distance = nil, radius
-    for _, player in ipairs(Players:GetPlayers()) do
-        local _, root = aliveCharacter(player)
-        if root and not MonsterNavigation.IsHouseRestricted(root.Position) then
-            local d = (root.Position - position).Magnitude
-            if d < distance then
-                nearest, distance = player, d
-            end
-        end
-    end
-    return nearest
+    local entry = PlayerPositions:Nearest(position, radius, function(pos)
+        return not MonsterNavigation.IsHouseRestricted(pos)
+    end)
+    return entry and entry.Player or nil
 end
 
 local function horizontalDelta(origin, target)

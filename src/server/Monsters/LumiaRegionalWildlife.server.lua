@@ -22,15 +22,7 @@ local definitions={
 }
 local points={}
 local function nearPlayers(position,radius)
-    for _,player in ipairs(Players:GetPlayers()) do
-        local character=player.Character
-        local root=character and character:FindFirstChild("HumanoidRootPart")
-        local hum=character and character:FindFirstChildOfClass("Humanoid")
-        if root and hum and hum.Health>0 and (root.Position-position).Magnitude<=radius then
-            return true
-        end
-    end
-    return false
+    return PlayerPositions:Within(position,radius)
 end
 local function findAnchor(dx,dz)
     local localXZ=grass.CFrame:PointToObjectSpace(grass.Position+Vector3.new(dx,0,dz))

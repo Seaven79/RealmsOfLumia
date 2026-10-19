@@ -110,13 +110,10 @@ local function onDied(model, monsterId)
     -- Personal collect credit for living nearby teammates. The current normal
     -- loot UI is single-owner, so teammates receive their quest fragment directly.
     -- Future personal-loot windows can replace only this block.
-    for _,teammate in ipairs(Players:GetPlayers()) do
+    for _,entry in ipairs(PlayerPositions:Roots()) do
+        local teammate=entry.Player
         if teammate~=owner then
-            local ch=teammate.Character
-            local hrp=ch and ch:FindFirstChild("HumanoidRootPart")
-            local hum=ch and ch:FindFirstChildOfClass("Humanoid")
-            if hrp and hum and hum.Health>0 and
-                (hrp.Position-root.Position).Magnitude<=36 then
+            if (entry.Position-root.Position).Magnitude<=36 then
                 local dropId,dropChance=QuestService:GetMonsterQuestDrop(teammate,monsterId)
                 if dropId and rng:NextNumber()<dropChance then
                     local given=InventoryService:AddItem(teammate,dropId,1)
