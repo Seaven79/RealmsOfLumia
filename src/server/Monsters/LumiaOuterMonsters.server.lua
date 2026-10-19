@@ -4,6 +4,7 @@
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local Service = require(script.Parent:WaitForChild("MonsterService"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 local folder = Workspace:WaitForChild("LumiaOpenWorldV15", 45)
 local points = folder and folder:WaitForChild("OuterMonsterAnchors", 35)
 if not points then

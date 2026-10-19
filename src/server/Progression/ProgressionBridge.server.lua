@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local services = script.Parent.Parent
 local ProgressionService = require(script.Parent:WaitForChild("ProgressionService"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 local PlayerDataService = require(services:WaitForChild("Players"):WaitForChild("PlayerDataService"))
 local Events = require(services:WaitForChild("Monsters"):WaitForChild("MonsterLifecycleEvents"))
 

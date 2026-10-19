@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local MonsterNavigation = require(script.Parent:WaitForChild("MonsterNavigation"))
 local CombatStats = require(script.Parent.Parent:WaitForChild("Combat"):WaitForChild("CombatStats"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 
 local MonsterAI = {}
 

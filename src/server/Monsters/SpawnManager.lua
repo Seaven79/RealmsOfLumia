@@ -17,6 +17,7 @@ local MonsterConfig = require(
 )
 
 local SpawnSafety = require(script.Parent:WaitForChild("SpawnSafety"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 local LifecycleEvents = require(script.Parent:WaitForChild("MonsterLifecycleEvents"))
 local LifecycleConfig = require(ReplicatedStorage:WaitForChild("Lumia")
     :WaitForChild("Shared"):WaitForChild("Monsters")

@@ -5,6 +5,7 @@ local Players=game:GetService("Players")
 local Workspace=game:GetService("Workspace")
 local MonsterService=require(script.Parent:WaitForChild("MonsterService"))
 local SpawnSafety=require(script.Parent:WaitForChild("SpawnSafety"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 local forest=Workspace:WaitForChild("ForgottenForest",30)
 local grass=forest and forest:FindFirstChild("Grassland",true)
 if not grass or not grass:IsA("BasePart") then

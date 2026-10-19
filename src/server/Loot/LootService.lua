@@ -8,6 +8,7 @@ local Services = script.Parent.Parent
 local InventoryService = require(Services:WaitForChild("Inventory"):WaitForChild("InventoryService"))
 local BagSnapshot = require(Services:WaitForChild("Inventory"):WaitForChild("BagSnapshot"))
 local LifecycleEvents = require(Services:WaitForChild("Monsters"):WaitForChild("MonsterLifecycleEvents"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 local Shared = ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local ItemDefinitions = require(Shared:WaitForChild("Items"):WaitForChild("ItemDefinitions"))
 local Config = require(Shared:WaitForChild("Loot"):WaitForChild("LootConfig"))

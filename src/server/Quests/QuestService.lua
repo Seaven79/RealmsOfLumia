@@ -8,6 +8,7 @@ local PlayerData = require(services:WaitForChild("Players"):WaitForChild("Player
 local Progression = require(services:WaitForChild("Progression"):WaitForChild("ProgressionService"))
 local Achievements = require(services:WaitForChild("Progression"):WaitForChild("AchievementService"))
 local Inventory = require(services:WaitForChild("Inventory"):WaitForChild("InventoryService"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 local Life = require(services:WaitForChild("Monsters"):WaitForChild("MonsterLifecycleEvents"))
 local Config = require(ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Quests"):WaitForChild("QuestConfig"))
 local Currency=require(ReplicatedStorage.Lumia.Shared:WaitForChild("Commerce"):WaitForChild("LumiaCurrency"))

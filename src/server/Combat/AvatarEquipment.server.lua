@@ -6,6 +6,7 @@ local Shared = ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local Items = require(Shared:WaitForChild("Items"):WaitForChild("ItemDefinitions"))
 local Data = require(script.Parent.Parent:WaitForChild("Players"):WaitForChild("PlayerDataService"))
 local Stats = require(script.Parent:WaitForChild("CombatStats"))
+local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Players"):WaitForChild("PlayerPositions"))
 local palette = {
     [1] = Color3.fromRGB(141, 113, 85),
     [2] = Color3.fromRGB(84, 137, 90),
