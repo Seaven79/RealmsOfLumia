@@ -411,3 +411,81 @@ Verified in Studio. Wolves chase 2x farther, notice sooner, boss stays arena-loc
 Stages 1-4a complete. ~90% of planned CPU wins done. Remaining work is optional polish (Stage 4b spawn safety, config refactor, Stage 5 docs).
 
 Recommendation: playtest 1-2 weeks at 20 players.
+---
+
+## Architecture Review (2026-10-19)
+
+### Current state assessment
+
+**15 server services, 9 network bridges, 20+ client controllers, ~60 modules total.**
+
+**Verdict: production-ready MMO architecture.** Standard pattern used by WoW-inspired Roblox games. Clean separation:
+
+- Server services = business logic
+- Network bridges = transport (Remotes)
+- Client controllers = UI + input
+- Shared modules = data / config / types
+- Event bus (`MonsterLifecycleEvents`) = loose coupling
+
+**Why the dependency graph looks dense:** because the game is complex. Every `require()` shows as an edge. That's normal for a 60-module project. What matters:
+
+- **Zero circular dependencies** ✅
+- **Zero god files** (biggest is `MonsterAI.lua` at 11 KB) ✅
+- **Explicit DI** (`Service:Configure(...)` pattern) ✅
+- **Event bus for cross-cutting concerns** ✅
+
+### Known "messy" areas (documented, not urgent)
+
+**1. `ServerBootstrap.server.lua` is a 10-require god-list**
+- Every new service means editing this file
+- Not broken, but growing
+- **Fix (if ever needed):** auto-registration via attribute scan, ~30 min work
+
+**2. `PlayerDataService.lua` required by 8 files**
+- Central hub pattern
+- Normal for MMO profile systems
+- **Fix (if ever needed):** none needed — hub is the correct design
+
+**3. Network bridges = 9 independent Scripts**
+- Each exposes 1 service to client
+- **Fix (if ever needed):** group by domain (Player / Combat / World) — 9 → 3 files
+
+### When to actually refactor
+
+| Signal | Threshold | Action |
+|---|---|---|
+| Boot file > 15 requires | 📊 watch | Consider auto-registration |
+| New feature = 4+ files | 📊 watch | Group bridges |
+| Circular dependency | 🔴 act now | Refactor immediately |
+| Service count > 40 | 📊 watch | Full audit |
+
+**Current status:** boot = 10 requires, feature = 1-3 files, zero circular. Well under thresholds.
+
+### Recommendation
+
+**Do nothing.** Playtest first. Refactor only when workflow genuinely hurts, not preemptively. Architecture is clean by the metrics that matter.
+
+---
+
+## Deferred / future work (updated)
+
+- **Stage 4b:** SpawnSafety spatial hash, spawn scope, player-load timeout — preemptive polish
+- **Config refactor:** MonsterConfig TrashDefaults + Boss overrides — convenience
+- **Architecture cleanup (optional):** auto-registration, bridge grouping — only if pain is felt
+- **Stage 5:** StreamingEnabled migration doc — safe, 10 min
+- **Playtest log:** record stutters / pathfinding issues / gameplay anomalies with specifics for targeted fixes
+
+---
+
+## Session log
+
+**2026-10-19** — 7 stages shipped + pushed:
+1. Stage 1 (`bfcca19`): ItemDefinitions hot-path, profile validator, keybind, print gating
+2. Stage 2a (`b54e876`): PlayerPositions module
+3. Stage 2b (`8d455a7`): 7 rewires
+4. Stage 3a (`e1123a4`): Pathfinding queue + roof escape
+5. Admin UI removal (`d9b1ada`): 7 files, 1118 lines
+6. Stage 3b (`1fa11ba`): Event-driven EnsureLoaded
+7. Stage 4a (`ee098a9`): Aggro range tuning + docs
+
+**Game verified working in Studio after each stage.**
