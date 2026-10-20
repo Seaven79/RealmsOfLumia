@@ -45,11 +45,23 @@ function Drag.Attach(panel)
         panel.AnchorPoint = Vector2.new(0, 0)
         panel.Position = UDim2.fromOffset(math.round(x), math.round(y))
     end
+    -- Places the panel using SCALE, so resizing the window keeps it in the same
+    -- relative spot instead of stranding it at a stale pixel offset. The upper
+    -- bound accounts for the panel's own size, so a saved 0.95 cannot push the
+    -- bar off the right edge of a narrower window.
+    local function moveToScale(nx, ny)
+        local screen = viewportSize()
+        if screen.X < 1 or screen.Y < 1 then return end
+        local size = panel.AbsoluteSize
+        local maxX = math.max(0, (screen.X - math.max(1, size.X)) / screen.X)
+        local maxY = math.max(0, (screen.Y - math.max(1, size.Y)) / screen.Y)
+        panel.AnchorPoint = Vector2.new(0, 0)
+        panel.Position = UDim2.fromScale(
+            math.clamp(nx, 0, maxX), math.clamp(ny, 0, maxY))
+    end
     local function applySaved(pos)
         if not valid(pos) or dragging then return end
-        local screen = viewportSize()
-        if screen.X <= 0 or screen.Y <= 0 then return end
-        moveTo(pos.X * screen.X, pos.Y * screen.Y)
+        moveToScale(pos.X, pos.Y)
     end
 
     -- Wait for profile readiness and ignore a late server response if a local
@@ -112,9 +124,28 @@ function Drag.Attach(panel)
     connections[#connections + 1] = UIS.InputEnded:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
-            if hadMoved then persist() end
+            if hadMoved then
+                -- Settle onto scale coordinates so the drop point survives a resize.
+                local screen = viewportSize()
+                if screen.X >= 1 and screen.Y >= 1 then
+                    local pos = panel.AbsolutePosition
+                    moveToScale(pos.X / screen.X, pos.Y / screen.Y)
+                end
+                persist()
+            end
         end
     end)
+    -- Re-clamp when the window changes size, e.g. entering or leaving fullscreen.
+    local camera = workspace.CurrentCamera
+    if camera then
+        connections[#connections + 1] = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            if dragging then return end
+            local screen = viewportSize()
+            if screen.X < 1 or screen.Y < 1 then return end
+            local pos = panel.AbsolutePosition
+            moveToScale(pos.X / screen.X, pos.Y / screen.Y)
+        end)
+    end
     panel.Destroying:Connect(function()
         active = false
         for _, connection in ipairs(connections) do connection:Disconnect() end

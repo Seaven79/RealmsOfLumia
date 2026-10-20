@@ -2,6 +2,7 @@
 -- survive resolution changes. The server persists positions in profile.Settings.
 local UIS=game:GetService("UserInputService")
 local ReplicatedStorage=game:GetService("ReplicatedStorage")
+local workspace=game:GetService("Workspace")
 local network=ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("ActionBarNetwork")
 local getRemote=network:WaitForChild("GetHudLayout")
 local setRemote=network:WaitForChild("SetHudLayout")
@@ -31,11 +32,21 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
         window.AnchorPoint=Vector2.new(0,0)
         window.Position=UDim2.fromOffset(math.round(x),math.round(y))
     end
+    -- Scale placement: the element keeps its relative position when the window is
+    -- resized, instead of staying at a pixel offset measured on an older window.
+    -- The bound subtracts the element's own size so it cannot leave the viewport.
+    local function moveNormalized(nx,ny)
+        local screen=dimensions()
+        if screen.X<1 or screen.Y<1 then return end
+        local size=window.AbsoluteSize
+        local maxX=math.max(0,(screen.X-math.max(1,size.X))/screen.X)
+        local maxY=math.max(0,(screen.Y-math.max(1,size.Y))/screen.Y)
+        window.AnchorPoint=Vector2.new(0,0)
+        window.Position=UDim2.fromScale(math.clamp(nx,0,maxX),math.clamp(ny,0,maxY))
+    end
     local function applyNormalized(data)
         if not valid(data) or dragging then return end
-        local screen=dimensions()
-        if screen.X<=0 or screen.Y<=0 then return end
-        movePixels(data.X*screen.X,data.Y*screen.Y)
+        moveNormalized(data.X,data.Y)
     end
     task.spawn(function()
         for _=1,12 do
@@ -72,6 +83,8 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
         local pos=window.AbsolutePosition
         local normX=math.clamp(pos.X/screen.X,0,1)
         local normY=math.clamp(pos.Y/screen.Y,0,1)
+        -- Settle onto scale coordinates so the drop survives a window resize.
+        moveNormalized(normX,normY)
         task.spawn(function()
             local ok,res=pcall(function()
                 return setRemote:InvokeServer(kind,normX,normY)
@@ -81,5 +94,16 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
             end
         end)
     end)
+    -- Keep the element visible when the viewport changes (fullscreen toggle).
+    local camera=workspace.CurrentCamera
+    if camera then
+        camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+            if dragging then return end
+            local screen=dimensions()
+            if screen.X<1 or screen.Y<1 then return end
+            local pos=window.AbsolutePosition
+            moveNormalized(pos.X/screen.X,pos.Y/screen.Y)
+        end)
+    end
 end
 return Hud
