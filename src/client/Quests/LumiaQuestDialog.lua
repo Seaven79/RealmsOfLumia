@@ -276,7 +276,7 @@ function QuestDialog.Show(options)
     build()
 
     titleLabel.Text = tostring(options.Title or "Quest")
-    speakerLabel.Text = string.uppercase(tostring(options.Speaker or "Quest Giver"))
+    speakerLabel.Text = string.upper(tostring(options.Speaker or "QUEST GIVER"))
     levelLabel.Text = options.Level and ("LEVEL " .. tostring(options.Level)) or ""
     storyLabel.Text = tostring(options.Description or "")
     rewardLabel.Text = describeRewards(options.Rewards)
