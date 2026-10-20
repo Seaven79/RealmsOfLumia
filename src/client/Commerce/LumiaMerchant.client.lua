@@ -154,6 +154,39 @@ local function rarityColor(id)
         or Color3.fromRGB(148,120,78)
 end
 local shopButtons={}
+-- Price chip: the coin glyph that matches the DENOMINATION, then the amount.
+-- Currency is 1 Sun = 10,000, 1 Moon = 100, 1 Cinder = 1, so a price of 95 is
+-- 95 Cinders and must show a Cinder coin, not a generic gold icon. Up to three
+-- denominations fit in the 60px cell; the row is centred.
+local CHIP_WIDTH=60
+local function priceChip(parent,amount)
+    local row=node("Frame",{Name="PriceRow",BackgroundTransparency=1,
+        Position=UDim2.fromOffset(1,58),Size=UDim2.fromOffset(CHIP_WIDTH,22)},parent)
+    local suns,moons,cinders=Currency.Split(amount)
+    local groups={}
+    if suns>0 then groups[#groups+1]={"Sun",suns} end
+    if moons>0 then groups[#groups+1]={"Moon",moons} end
+    if cinders>0 or #groups==0 then groups[#groups+1]={"Cinder",cinders} end
+
+    local count=#groups
+    -- Up to 3 denominations must share a 60px cell: shrink the glyph and type
+    -- rather than letting the amounts overlap.
+    local coinSize=count>=3 and 10 or 13
+    local textSize=count>=3 and 9 or 11
+    local step=math.min(30,math.floor(CHIP_WIDTH/count))
+    local startX=math.max(0,math.floor((CHIP_WIDTH-step*count)/2))
+    for i,g in ipairs(groups) do
+        local x=startX+(i-1)*step
+        local coin=Coins.Create(row,g[1],coinSize)
+        coin.Position=UDim2.fromOffset(x,math.floor((22-coinSize)/2))
+        node("TextLabel",{Name="Amount",BackgroundTransparency=1,Text=tostring(g[2]),
+            Position=UDim2.fromOffset(x+coinSize+2,0),
+            Size=UDim2.fromOffset(math.max(8,step-coinSize-2),22),
+            Font=Enum.Font.GothamBold,TextSize=textSize,TextColor3=gold,
+            TextXAlignment=Enum.TextXAlignment.Left,TextTruncate=Enum.TextTruncate.AtEnd},row)
+    end
+    return row
+end
 local function clearShopSlots()
     for _,button in ipairs(shopButtons) do button:Destroy() end
     table.clear(shopButtons)
@@ -185,8 +218,7 @@ local function render(data)
             if not Preview.Attach(iconCell,entry.ItemId) then
                 text(iconCell,"Fallback","◆",UDim2.fromScale(0,0),UDim2.fromScale(1,1),28,gold,true)
             end
-            text(button,"Price",tostring(entry.Price),UDim2.fromOffset(4,59),
-                UDim2.fromOffset(55,20),12,gold,true).TextXAlignment=Enum.TextXAlignment.Center
+            priceChip(button,entry.Price)
             button.MouseEnter:Connect(function()
                 hoveredEntry=entry
                 showEntryTooltip(entry)
