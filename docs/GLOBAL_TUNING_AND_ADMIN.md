@@ -143,13 +143,29 @@ Server path: `AdminBridge.handlers.ResetLevel` → `ProgressionService:ResetProg
   Per-quest rewards are the real control.
 
 ## Scalability notes
-
 - No per-frame work anywhere in the admin stack. The panel renders on demand and
   had its background ticker removed.
 - Server work is owner-triggered only; 15 requests/sec cap, 200 ops per batch.
 - Effective-value getters are table lookups — safe to call from hot paths
   (`GetRequiredXP` runs on every XP award).
 - `BalanceService:PreviewTuning` walks 4 monsters; only called for panel state.
+
+---
+
+## Modal windows and the mouse cursor
+
+`LumiaModalState` is the single source of truth for "is a window open". The quest
+pointer uses it to decide whether to replace the native cursor with its own glyph
+— while a modal is open the player needs a real cursor to click items.
+
+**Invariant: every `Register(name)` needs a matching `Unregister(name)` on EVERY
+path that hides the window.** A leaked registration is not cosmetic: it makes
+`IsOpen()` permanently true, so the native cursor never comes back and the glyph
+never returns. This already happened once — the bag was auto-opened for trading
+and its registration was never cleared when the shop closed.
+
+When adding a window: register on show, unregister on hide, in one place, and
+route all hide paths through that single function.
 
 ---
 

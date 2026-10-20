@@ -453,6 +453,13 @@ ShopBridge.Changed:Connect(function(open,merchantFrame)
         shopFrame=nil
         window.Visible=preTradeVisible
         if preTradePosition then window.Position=preTradePosition end
+        -- The bag was auto-opened for trading. If it was not open before the
+        -- trade, closing the shop hides it and MUST also clear its modal
+        -- registration, or every system reading modal state (the quest pointer,
+        -- the bag hotkey) keeps believing a window is still open.
+        if not window.Visible then
+            LumiaModalState:Unregister("BagWindow")
+        end
     end
     tooltip:Hide()
     hoveredSlot=nil
