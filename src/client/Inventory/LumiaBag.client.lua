@@ -268,9 +268,10 @@ local function ensureSection(bag)
         local widget = { Frame = slot, Border = border, Number = number, Item = nil,
             BagId = bagId, Slot = bagSlot }
         widgets[bagSlot] = widget
-        -- With the merchant open, a plain click on a stack sells the whole stack.
-        -- Dragging still works for selling a single unit.
-        slot.MouseButton1Click:Connect(function()
+        -- Classic vendor behaviour: RIGHT-click a bag item while the shop is open
+        -- sells that stack. Left-click stays harmless so inspecting or dragging
+        -- can never cost the player an item by accident.
+        slot.MouseButton2Click:Connect(function()
             if DragDrop.IsDragging() then return end
             if not ShopBridge.IsOpen() then return end
             local item = widget.Item

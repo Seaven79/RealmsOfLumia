@@ -45,7 +45,7 @@ local function text(parent,name,t,pos,size,pts,col,bold)
         TextWrapped=true},parent)
 end
 local frame=node("Frame",{Name="MerchantWindow",Position=UDim2.fromOffset(200,120),
-    Size=UDim2.fromOffset(445,475),BackgroundColor3=dark,BorderSizePixel=0,
+    Size=UDim2.fromOffset(445,382),BackgroundColor3=dark,BorderSizePixel=0,
     Visible=false},gui)
 node("UICorner",{CornerRadius=UDim.new(0,9)},frame)
 node("UIStroke",{Color=gold,Thickness=1.5},frame)
@@ -61,18 +61,10 @@ text(frame,"MerchantGreeting","The hearth is warm. Choose what you need.",
 text(frame,"BuyHeading","SUPPLIES",UDim2.fromOffset(16,106),UDim2.fromOffset(300,19),14,gold,true)
 local grid=node("Frame",{Name="ShopSlots",Position=UDim2.fromOffset(16,130),
     Size=UDim2.fromOffset(412,190),BackgroundTransparency=1},frame)
-text(frame,"SellHeading","SELL ITEMS",UDim2.fromOffset(16,325),UDim2.fromOffset(160,20),14,gold,true)
-local sellTray=node("Frame",{Name="SellDropTarget",Position=UDim2.fromOffset(16,351),
-    Size=UDim2.fromOffset(411,66),BackgroundColor3=Color3.fromRGB(61,45,32),
-    BorderSizePixel=0,Active=true},frame)
-node("UICorner",{CornerRadius=UDim.new(0,7)},sellTray)
-node("UIStroke",{Color=Color3.fromRGB(129,94,54),Thickness=1.4},sellTray)
-text(sellTray,"TrayIcon","◈",UDim2.fromOffset(17,12),UDim2.fromOffset(42,42),30,gold,true)
-text(sellTray,"TrayTitle","DRAG ITEM FROM BAG HERE",UDim2.fromOffset(74,12),UDim2.fromOffset(321,24),14,cream,true)
-text(sellTray,"TrayNote","Click a bag stack to sell all of it · drag sells 1 · quest items protected",
-    UDim2.fromOffset(74,35),UDim2.fromOffset(321,20),11,Color3.fromRGB(178,160,137),false)
-local status=text(frame,"Status","Hover to inspect an item. Drag from the open bag to sell.",
-    UDim2.fromOffset(16,426),UDim2.fromOffset(412,38),12,gold,false)
+-- No sell tray: selling is done by right-clicking items in your own bag, as in
+-- classic MMO vendors. This panel only lists what the merchant sells.
+local status=text(frame,"Status","Right-click items in your bag to sell them.",
+    UDim2.fromOffset(16,330),UDim2.fromOffset(412,34),12,gold,false)
 status.TextXAlignment=Enum.TextXAlignment.Center
 local tooltip=Tooltip.new(gui)
 
@@ -108,7 +100,7 @@ local function layoutShop()
     local screen=gui.AbsoluteSize
     local width=445+12+282
     local x=math.max(8,math.floor((screen.X-width)/2))
-    local y=math.max(8,math.floor((screen.Y-475)/2))
+    local y=math.max(8,math.floor((screen.Y-382)/2))
     frame.Position=UDim2.fromOffset(x,y)
 end
 local function notify(message)
@@ -141,8 +133,9 @@ local function transact(verb,id,bagId,bagSlot,instanceId)
         last=reply
         Coins.SetWallet(wallet,Currency,reply.Gold or 0)
     end
-    notify(verb=="Sell" and "Item sold!" or "Purchased! Check your bag.")
-    return true,verb=="Sell" and "Sold one item" or "Purchased"
+    local isSale=(verb=="Sell" or verb=="SellStack")
+    notify(isSale and (reply.Message or "Item sold!") or "Purchased! Check your bag.")
+    return true,isSale and (reply.Message or "Sold") or "Purchased"
 end
 local function rarityColor(id)
     local item=Items.Get(id) or {}
@@ -243,18 +236,8 @@ local function closeMerchant()
     LumiaModalState:Unregister("MerchantWindow")
 end
 close.MouseButton1Click:Connect(closeMerchant)
-DragDrop.RegisterExternalTarget(sellTray,function(item)
-    local def=item and Items.Get(item.ItemId)
-    return frame.Visible and def~=nil and def.Type~="Quest"
-        and def.QuestItem~=true and type(def.SellValue)=="number" and def.SellValue>0
-end,function(item,coordinates)
-    tooltip:Hide()
-    if not frame.Visible then return false,"The shop is closed" end
-    if type(coordinates)~="table" then return false,"Invalid bag position" end
-    return transact("Sell",item.ItemId,coordinates.BagId,coordinates.Slot,item.InstanceId)
-end)
--- Clicking a stack in the bag sells the whole stack. Dragging still sells one, so
--- both habits work and the tray hint explains the difference.
+-- Selling is right-click on a bag item while the shop is open (classic vendor
+-- behaviour). The bag raises the request; this window owns the network call.
 Bridge.SellStackRequested:Connect(function(item,coordinates)
     if not frame.Visible then return end
     if type(item)~="table" or type(coordinates)~="table" then return end
