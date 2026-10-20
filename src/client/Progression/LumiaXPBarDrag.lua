@@ -28,7 +28,7 @@ function Drag.Attach(panel)
     if not getRemote or not setRemote then return end
 
     local dragging = false
-    local mouseStart, panelStart
+    local grabPointer, grabAbsolute
     local revision = 0
     local hadMoved = false
     local connections = {}
@@ -68,6 +68,20 @@ function Drag.Attach(panel)
         -- Screen space -> parent space, using the measured origin.
         panel.Position = UDim2.fromOffset(
             math.round(x - parentOffsetX), math.round(y - parentOffsetY))
+    end
+    -- Incremental move: shift Position by the pixel difference between where the
+    -- panel IS on screen and where it should be. This never has to know the space
+    -- mapping (inset, parent offset, anchor, scale) because it measures the result
+    -- rather than predicting it - the correction that has failed to land so far.
+    local function nudgeToScreen(targetAbsX, targetAbsY)
+        targetAbsX, targetAbsY = clampPixels(targetAbsX, targetAbsY)
+        local cur = panel.AbsolutePosition
+        local dx = targetAbsX - cur.X
+        local dy = targetAbsY - cur.Y
+        if math.abs(dx) < 1 and math.abs(dy) < 1 then return end
+        panel.Position = UDim2.new(
+            panel.Position.X.Scale, panel.Position.X.Offset + dx,
+            panel.Position.Y.Scale, panel.Position.Y.Offset + dy)
     end
     local function applySaved(pos)
         if not valid(pos) or dragging then return end
@@ -119,19 +133,21 @@ function Drag.Attach(panel)
     connections[#connections + 1] = panel.InputBegan:Connect(function(input)
         if dragging or not panel.Parent or UIS:GetFocusedTextBox() then return end
         if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-        local mouse = UIS:GetMouseLocation()
         dragging = true
         hadMoved = false
         revision += 1
-        mouseStart = mouse
-        panelStart = panel.AbsolutePosition
+        grabPointer = UIS:GetMouseLocation()
+        grabAbsolute = panel.AbsolutePosition
     end)
     connections[#connections + 1] = UIS.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = UIS:GetMouseLocation() - mouseStart
-            if delta.Magnitude > 3 then hadMoved = true end
-            moveTo(panelStart.X + delta.X, panelStart.Y + delta.Y)
-        end
+        if not dragging then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+        local mouse = UIS:GetMouseLocation()
+        local delta = mouse - grabPointer
+        if delta.Magnitude > 3 then hadMoved = true end
+        -- Desired screen position = where it was at grab, plus how far the cursor
+        -- has travelled since. Same 1:1 tracking, but applied as a measured nudge.
+        nudgeToScreen(grabAbsolute.X + delta.X, grabAbsolute.Y + delta.Y)
     end)
     connections[#connections + 1] = UIS.InputEnded:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then

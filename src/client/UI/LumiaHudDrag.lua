@@ -51,6 +51,20 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
         window.AnchorPoint=Vector2.new(0,0)
         window.Position=UDim2.fromOffset(math.round(x-parentOffsetX),math.round(y-parentOffsetY))
     end
+    -- Incremental move: shift Position by the measured pixel difference between
+    -- where the window is on screen and where it should be. This never needs to
+    -- know the space mapping (inset, parent, anchor, scale); it corrects from the
+    -- observed result instead of predicting it.
+    local function nudgeToScreen(targetAbsX,targetAbsY)
+        targetAbsX,targetAbsY=clampPos(targetAbsX,targetAbsY)
+        local cur=window.AbsolutePosition
+        local dx=targetAbsX-cur.X
+        local dy=targetAbsY-cur.Y
+        if math.abs(dx)<1 and math.abs(dy)<1 then return end
+        window.Position=UDim2.new(
+            window.Position.X.Scale,window.Position.X.Offset+dx,
+            window.Position.Y.Scale,window.Position.Y.Offset+dy)
+    end
     local function applyNormalized(data)
         if not valid(data) or dragging then return end
         local screen=dimensions()
@@ -78,10 +92,13 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
         windowStart=window.AbsolutePosition
     end)
     UIS.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType==Enum.UserInputType.MouseMovement then
-            local delta=UIS:GetMouseLocation()-pointerStart
-            movePixels(windowStart.X+delta.X,windowStart.Y+delta.Y)
-        end
+        if not dragging then return end
+        if input.UserInputType~=Enum.UserInputType.MouseMovement then return end
+        local mouse=UIS:GetMouseLocation()
+        local delta=mouse-pointerStart
+        -- Desired screen position = grab position + cursor travel, applied as a
+        -- measured nudge so the window tracks the cursor 1:1 with no jump.
+        nudgeToScreen(windowStart.X+delta.X,windowStart.Y+delta.Y)
     end)
     UIS.InputEnded:Connect(function(input)
         if input.UserInputType~=Enum.UserInputType.MouseButton1 or not dragging then return end
