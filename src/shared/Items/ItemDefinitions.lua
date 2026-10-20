@@ -70,7 +70,39 @@ do
     end
 end
 
+-- Resolve the curve layer once. ItemDefinitions is the single choke point every
+-- consumer reads through (tooltip, bag, merchant, combat), so applying the template
+-- here is what makes gear numbers follow the active template everywhere.
+local GearCurveModule
+local function gearCurve()
+    if GearCurveModule ~= nil then return GearCurveModule or nil end
+    GearCurveModule = false
+    local shared = script.Parent.Parent
+    local commerce = shared:FindFirstChild("Commerce")
+    local moduleScript = commerce and commerce:FindFirstChild("GearCurve")
+    if moduleScript then
+        local ok, result = pcall(function() return require(moduleScript) end)
+        if ok and type(result) == "table" then
+            GearCurveModule = result
+        else
+            warn("[Lumia - ItemDefinitions] GearCurve require failed: " .. tostring(result))
+        end
+    end
+    return GearCurveModule or nil
+end
+
 function ItemDefinitions.Get(itemId)
+    if type(itemId) ~= "string" then return nil end
+    local definition = ItemDefinitions.Definitions[itemId]
+    if not definition then return nil end
+    local curve = gearCurve()
+    if curve then return curve.Apply(definition) end
+    return definition
+end
+
+-- The authored definition, ignoring the active template. Used by the admin panel
+-- and by previews that need to show the baseline numbers.
+function ItemDefinitions.GetAuthored(itemId)
     if type(itemId) ~= "string" then return nil end
     return ItemDefinitions.Definitions[itemId]
 end

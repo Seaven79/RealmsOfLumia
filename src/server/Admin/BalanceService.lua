@@ -10,6 +10,7 @@ local MonsterConfig = require(Shared:WaitForChild("Monsters"):WaitForChild("Mons
 local QuestConfig = require(Shared:WaitForChild("Quests"):WaitForChild("QuestConfig"))
 local GlobalTuning = require(Shared:WaitForChild("Admin"):WaitForChild("GlobalTuning"))
 local GearCatalog = require(Shared:WaitForChild("Commerce"):WaitForChild("GearCatalog"))
+local GearCurve = require(Shared:WaitForChild("Commerce"):WaitForChild("GearCurve"))
 local Settings = require(script.Parent:WaitForChild("BalanceSettings"))
 local CurveLab = require(script.Parent:WaitForChild("CurveLabService"))
 
@@ -80,7 +81,27 @@ local function sanitize(record)
     return result
 end
 
+-- Publishes the active template so the shared GearCurve layer derives gear numbers
+-- from it on every client and on the server. MatchPreset returns nil for hand-tuned
+-- dial sets; the neutral template is the correct shape in that case.
+local function publishGearTemplate()
+    local folder = ReplicatedStorage:FindFirstChild("Lumia")
+    if not folder then return end
+    local preset = nil
+    local ok, matched = pcall(function()
+        return BalanceService:GetGlobalPreset()
+    end)
+    if ok and type(matched) == "string" then preset = matched end
+    if not preset or GearCurve.Templates[preset] == nil then
+        preset = GearCurve.DefaultTemplate
+    end
+    if folder:GetAttribute(GearCurve.AttributeName) ~= preset then
+        folder:SetAttribute(GearCurve.AttributeName, preset)
+    end
+end
+
 local function broadcast()
+    publishGearTemplate()
     BalanceService.Changed:Fire()
 end
 

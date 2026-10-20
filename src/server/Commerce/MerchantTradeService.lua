@@ -7,11 +7,26 @@ local Data=require(server:WaitForChild("Players"):WaitForChild("PlayerDataServic
 local Snapshot=require(server:WaitForChild("Inventory"):WaitForChild("BagSnapshot"))
 local Shared=ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
 local Items=require(Shared:WaitForChild("Items"):WaitForChild("ItemDefinitions"))
+local GearCurve=require(Shared:WaitForChild("Commerce"):WaitForChild("GearCurve"))
 local Currency=require(Shared:WaitForChild("Commerce"):WaitForChild("LumiaCurrency"))
 local Trade={}
 local function offers(config, level)
-    if type(config.GetStock)=="function" then return config.GetStock(level) end
-    return config.BuyItems or {}
+    local list
+    if type(config.GetStock)=="function" then
+        list=config.GetStock(level)
+    else
+        list=config.BuyItems or {}
+    end
+    -- Stock entries carry their own fixed price, so the template curve has to be
+    -- applied here rather than through ItemDefinitions.
+    for _,offer in ipairs(list) do
+        local definition=Items.GetAuthored(offer.ItemId)
+        local weight=definition and GearCurve.PriceScale(definition) or 1
+        if weight~=1 and type(offer.Price)=="number" then
+            offer.Price=math.max(1,math.floor(offer.Price*weight+0.5))
+        end
+    end
+    return list
 end
 Trade.__index=Trade
 function Trade.new(options)
