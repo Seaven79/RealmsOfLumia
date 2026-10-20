@@ -47,22 +47,19 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
     -- Scale placement: the element keeps its relative position when the window is
     -- resized, instead of staying at a pixel offset measured on an older window.
     -- The bound subtracts the element's own size so it cannot leave the viewport.
-    local function moveNormalized(nx,ny)
-        local screen=dimensions()
-        if screen.X<1 or screen.Y<1 then return end
-        local size=window.AbsoluteSize
-        local maxX=math.max(0,(screen.X-math.max(1,size.X))/screen.X)
-        local maxY=math.max(0,(screen.Y-math.max(1,size.Y))/screen.Y)
-        window.AnchorPoint=Vector2.new(0,0)
-        window.Position=UDim2.fromScale(math.clamp(nx,0,maxX),math.clamp(ny,0,maxY))
-    end
+
     -- Canonical placement: the player's intent, unclamped. Only the DISPLAY is
     -- clamped, so a spell in a small window cannot permanently overwrite a
     -- layout chosen in fullscreen.
     local savedX,savedY=nil,nil
+    -- Pixel path for every write: release and resize used to call moveNormalized
+    -- (scale space) while dragging used pixels, so letting go of the mouse moved
+    -- the element. One space, one function, no shift.
     local function displayPlacement()
         if savedX==nil then return end
-        moveNormalized(savedX,savedY)
+        local screen=dimensions()
+        if screen.X<1 or screen.Y<1 then return end
+        movePixels(savedX*screen.X,savedY*screen.Y)
     end
     local function applyNormalized(data)
         if not valid(data) or dragging then return end
@@ -95,6 +92,10 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
         window.AnchorPoint=Vector2.new(0,0)
         window.Position=UDim2.fromOffset(math.round(gx),math.round(gy))
         grabOffset=Vector2.new(pointerStart.X-abs.X,pointerStart.Y-abs.Y)
+        if workspace:GetAttribute("LumiaHudDragDebug")==true then
+            print(string.format("[Lumia - HUD drag v3] %s grab: abs=(%d,%d) gui=(%d,%d) offset=(%d,%d) anchor=(%.1f,%.1f)",
+                kind,abs.X,abs.Y,gx,gy,grabOffset.X,grabOffset.Y,window.AnchorPoint.X,window.AnchorPoint.Y))
+        end
     end)
     UIS.InputChanged:Connect(function(input)
         if dragging and input.UserInputType==Enum.UserInputType.MouseMovement then

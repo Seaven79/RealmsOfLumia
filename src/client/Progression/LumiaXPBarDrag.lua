@@ -61,28 +61,20 @@ function Drag.Attach(panel)
         panel.AnchorPoint = Vector2.new(0, 0)
         panel.Position = UDim2.fromOffset(math.round(gx), math.round(gy))
     end
-    -- Places the panel using SCALE, so resizing the window keeps it in the same
-    -- relative spot instead of stranding it at a stale pixel offset. The upper
-    -- bound accounts for the panel's own size, so a saved 0.95 cannot push the
-    -- bar off the right edge of a narrower window.
-    local function moveToScale(nx, ny)
-        local screen = viewportSize()
-        if screen.X < 1 or screen.Y < 1 then return end
-        local size = panel.AbsoluteSize
-        local maxX = math.max(0, (screen.X - math.max(1, size.X)) / screen.X)
-        local maxY = math.max(0, (screen.Y - math.max(1, size.Y)) / screen.Y)
-        panel.AnchorPoint = Vector2.new(0, 0)
-        panel.Position = UDim2.fromScale(
-            math.clamp(nx, 0, maxX), math.clamp(ny, 0, maxY))
-    end
+
     -- Canonical placement: the player's INTENT, unclamped. The clamped value is
     -- only what gets displayed. Deriving the canonical value from the displayed
     -- position would let a temporary small window overwrite a fullscreen layout
     -- permanently, which is exactly the bug this guards against.
     local savedX, savedY = nil, nil
+    -- Everything goes through moveTo (pixels -> gui space). Release and resize used
+    -- to write UDim2.fromScale instead, which is a different coordinate space from
+    -- the drag path and made the element shift at the moment the mouse was released.
     local function displayPlacement()
         if savedX == nil then return end
-        moveToScale(savedX, savedY)
+        local screen = viewportSize()
+        if screen.X < 1 or screen.Y < 1 then return end
+        moveTo(savedX * screen.X, savedY * screen.Y)
     end
     local function applySaved(pos)
         if not valid(pos) or dragging then return end
@@ -146,6 +138,10 @@ function Drag.Attach(panel)
         panel.AnchorPoint = Vector2.new(0, 0)
         panel.Position = UDim2.fromOffset(math.round(gx), math.round(gy))
         grabOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
+        if workspace:GetAttribute("LumiaHudDragDebug") == true then
+            print(string.format("[Lumia - XP drag v3] grab: abs=(%d,%d) gui=(%d,%d) offset=(%d,%d)",
+                abs.X, abs.Y, gx, gy, grabOffset.X, grabOffset.Y))
+        end
     end)
     connections[#connections + 1] = UIS.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
