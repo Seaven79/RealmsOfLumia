@@ -15,6 +15,11 @@ local UserInputService = game:GetService("UserInputService")
 
 local QuestDialog = {}
 
+-- Bump when this module changes: the print at the bottom tells you in Output which
+-- version Studio is actually running, which distinguishes "still broken" from
+-- "Rojo has not synced yet".
+local VERSION = "v3-upper-fix"
+
 local GOLD = Color3.fromRGB(226, 191, 122)
 local PAPER = Color3.fromRGB(238, 229, 210)
 local MUTED = Color3.fromRGB(168, 156, 137)
@@ -340,5 +345,7 @@ local function connectOnce()
 end
 
 task.defer(connectOnce)
+
+print("[Lumia - Quest Dialog] " .. VERSION .. " loaded")
 
 return QuestDialog
