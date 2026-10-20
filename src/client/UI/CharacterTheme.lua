@@ -20,6 +20,7 @@ Theme.White = Color3.fromRGB(235, 242, 250)
 Theme.Secondary = Color3.fromRGB(163, 181, 204)
 Theme.Muted = Color3.fromRGB(120, 141, 167)
 Theme.Green = Color3.fromRGB(97, 217, 154)
+Theme.Red = Color3.fromRGB(214, 98, 88)
 Theme.TooltipBackground = Color3.fromRGB(11, 18, 32)
 
 Theme.RarityColors = {

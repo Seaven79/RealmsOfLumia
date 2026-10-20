@@ -22,6 +22,12 @@ EquipmentClient.EquipmentChanged = equipmentChanged.Event
 EquipmentClient.Completed = completed.Event
 EquipmentClient.NeedsRefresh = needsRefresh.Event
 
+-- Lets other UIs (e.g. the merchant comparison) ask for a fresh equipped
+-- snapshot without knowing which controller performs the fetch.
+function EquipmentClient.RequestRefresh()
+    needsRefresh:Fire()
+end
+
 local confirmedBag = nil
 local confirmedEquipment = nil
 local pending = nil

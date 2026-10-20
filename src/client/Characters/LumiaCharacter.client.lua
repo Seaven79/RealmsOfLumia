@@ -231,6 +231,28 @@ refresh = function()
     end
 end
 
+-- Data-only equipment fetch. Independent of window visibility so equipped gear
+-- is known to every UI that compares against it (merchant tooltips, action bar)
+-- even when the player has never opened the character sheet this session.
+local fetchEquipment = function()
+    local startedRevision = EquipmentClient.GetRevision()
+    local ok, result = pcall(function()
+        return request:InvokeServer()
+    end)
+    if ok and type(result) == "table" and result.Ready then
+        return EquipmentClient.UpdateEquipmentSnapshot(result.Equipment or {}, startedRevision)
+    end
+    return false
+end
+
+task.spawn(function()
+    -- Retry briefly: the profile may still be loading on first join.
+    for attempt = 1, 5 do
+        if fetchEquipment() then return end
+        task.wait(attempt)
+    end
+end)
+
 -- Local predictions and confirmed server responses update equipment instantly.
 -- Stats and XP still refresh from the existing read-only CharacterBridge.
 EquipmentClient.EquipmentChanged:Connect(function()
@@ -240,6 +262,7 @@ EquipmentClient.EquipmentChanged:Connect(function()
 end)
 
 EquipmentClient.NeedsRefresh:Connect(function()
+    task.spawn(fetchEquipment)
     task.delay(0.3, function()
         if window.Visible then task.spawn(refresh) end
     end)

@@ -16,6 +16,7 @@ local Tooltip=require(base:WaitForChild("UI"):WaitForChild("ItemTooltip"))
 local DragDrop=require(base:WaitForChild("UI"):WaitForChild("EquipmentDragDrop"))
 local Bridge=require(base:WaitForChild("UI"):WaitForChild("MerchantUIBridge"))
 local EquipmentClient=require(base:WaitForChild("UI"):WaitForChild("EquipmentClient"))
+local EquipmentRules=require(Shared:WaitForChild("Equipment"):WaitForChild("EquipmentRules"))
 local net=ReplicatedStorage.Lumia:WaitForChild("CommerceNetwork")
 local openRemote=net:WaitForChild("OpenMerchant")
 local action=net:WaitForChild("MerchantAction")
@@ -74,6 +75,32 @@ local status=text(frame,"Status","Hover to inspect an item. Drag from the open b
     UDim2.fromOffset(16,426),UDim2.fromOffset(412,38),12,gold,false)
 status.TextXAlignment=Enum.TextXAlignment.Center
 local tooltip=Tooltip.new(gui)
+
+-- Hold Shift while hovering to compare against what is equipped in that slot.
+-- Returns the slot plus whatever occupies it (nil when the slot is empty), so
+-- the tooltip can still show the gains from buying into an empty slot.
+tooltip:SetComparisonProvider(function(itemId)
+    local def=Items.Get(itemId)
+    if not def then return nil end
+    local slot=EquipmentRules.GetSlot(def)
+    if not slot then return nil end
+    local equipped=EquipmentClient.GetEquipmentView()
+    return { Slot = slot, Equipped = equipped and equipped[slot] or nil }
+end)
+
+local hoveredEntry=nil
+local function showEntryTooltip(entry)
+    if not entry then return end
+    tooltip:Show({ItemId=entry.ItemId,StoreBuyPrice=entry.Price,Quantity=1})
+end
+local shiftKeys={[Enum.KeyCode.LeftShift]=true,[Enum.KeyCode.RightShift]=true}
+UIS.InputBegan:Connect(function(input)
+    if shiftKeys[input.KeyCode] and hoveredEntry then showEntryTooltip(hoveredEntry) end
+end)
+UIS.InputEnded:Connect(function(input)
+    if shiftKeys[input.KeyCode] and hoveredEntry then showEntryTooltip(hoveredEntry) end
+end)
+
 local busy=false
 local showing=nil
 local last=nil
@@ -161,9 +188,13 @@ local function render(data)
             text(button,"Price",tostring(entry.Price),UDim2.fromOffset(4,59),
                 UDim2.fromOffset(55,20),12,gold,true).TextXAlignment=Enum.TextXAlignment.Center
             button.MouseEnter:Connect(function()
-                tooltip:Show({ItemId=entry.ItemId,StoreBuyPrice=entry.Price,Quantity=1})
+                hoveredEntry=entry
+                showEntryTooltip(entry)
             end)
-            button.MouseLeave:Connect(function()tooltip:Hide() end)
+            button.MouseLeave:Connect(function()
+                if hoveredEntry==entry then hoveredEntry=nil end
+                tooltip:Hide()
+            end)
             button.MouseButton1Click:Connect(function()
                 tooltip:Hide()
                 transact("Buy",entry.ItemId)
@@ -210,6 +241,12 @@ local function openMerchant()
     render(reply)
     updateInventory(reply)
     Bridge.Open(frame)
+    -- Equip comparisons need the equipped map. If nothing has loaded it yet
+    -- (character sheet never opened), ask for it now instead of showing
+    -- "nothing equipped" for gear the player is wearing.
+    if next(EquipmentClient.GetEquipmentView())==nil then
+        EquipmentClient.RequestRefresh()
+    end
 end
 local bindId="Lumia_MerchantInteract"
 local function rebind()
