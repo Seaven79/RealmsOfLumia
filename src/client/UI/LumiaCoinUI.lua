@@ -1,5 +1,7 @@
 -- Realms of Lumia original coin glyphs (Roblox primitives, no third-party icon IDs).
 -- Full icons rendered using a circular metal disk, subtle bevel, and embossed mark.
+local UserInputService=game:GetService("UserInputService")
+local GuiService=game:GetService("GuiService")
 local Coins={}
 local specs={
     Platinum={color=Color3.fromRGB(229,228,226),edge=Color3.fromRGB(118,122,132),mark="✦"},
@@ -76,11 +78,21 @@ function Coins.Wallet(parent,currencyModule,balance,isCompact)
             if not screenGui or not tier then return end
             local card=infoCard(screenGui)
             card.Text=tier.Name
-            local pos=holder.AbsolutePosition
-            local size=holder.AbsoluteSize
+
+            -- Follow the cursor, not the coin: the label belongs to the pointer.
+            -- GetMouseLocation includes the topbar inset, so a ScreenGui that does
+            -- not ignore the inset needs it subtracted (same rule as ItemTooltip).
+            local mouse=UserInputService:GetMouseLocation()
+            if not screenGui.IgnoreGuiInset then
+                local inset=GuiService:GetGuiInset()
+                mouse=mouse-inset
+            end
+            local cardWidth=card.AbsoluteSize.X
+            local cardHeight=card.AbsoluteSize.Y
+            local screen=screenGui.AbsoluteSize
             card.Position=UDim2.fromOffset(
-                math.floor(pos.X+size.X/2-60),
-                math.max(0,math.floor(pos.Y-30)))
+                math.clamp(math.floor(mouse.X+18),0,math.max(0,screen.X-cardWidth-4)),
+                math.clamp(math.floor(mouse.Y+18),0,math.max(0,screen.Y-cardHeight-4)))
             card.Visible=true
         end)
         hover.MouseLeave:Connect(function()
