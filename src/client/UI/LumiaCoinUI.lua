@@ -2,9 +2,9 @@
 -- Full icons rendered using a circular metal disk, subtle bevel, and embossed mark.
 local Coins={}
 local specs={
-    Sun={color=Color3.fromRGB(209,157,60),edge=Color3.fromRGB(119,76,30),mark="✦"},
-    Moon={color=Color3.fromRGB(171,193,207),edge=Color3.fromRGB(84,103,127),mark="◐"},
-    Cinder={color=Color3.fromRGB(171,103,65),edge=Color3.fromRGB(96,53,40),mark="✧"},
+    Platinum={color=Color3.fromRGB(229,228,226),edge=Color3.fromRGB(118,122,132),mark="✦"},
+    Silver={color=Color3.fromRGB(192,197,206),edge=Color3.fromRGB(98,104,115),mark="◐"},
+    Copper={color=Color3.fromRGB(184,115,51),edge=Color3.fromRGB(108,64,30),mark="✧"},
 }
 local function new(class,parent,properties)
     local x=Instance.new(class)
@@ -29,7 +29,7 @@ function Coins.Create(parent,tier,px)
 end
 function Coins.Wallet(parent,currencyModule,balance,isCompact)
     local sun,moon,cinder=currencyModule.Split(balance)
-    local tiers={{"Sun",sun},{"Moon",moon},{"Cinder",cinder}}
+    local tiers={{"Platinum",sun},{"Silver",moon},{"Copper",cinder}}
     local width=isCompact and 52 or 99
     local radius=isCompact and 13 or 18
     local outer=new("Frame",parent,{Name="LumiaCoinWallet",BackgroundTransparency=1,
