@@ -1,6 +1,7 @@
 -- Shared HUD drag controller; uses normalized screen coordinates so layouts
 -- survive resolution changes. The server persists positions in profile.Settings.
 local UIS=game:GetService("UserInputService")
+local GuiService=game:GetService("GuiService")
 local ReplicatedStorage=game:GetService("ReplicatedStorage")
 local workspace=game:GetService("Workspace")
 local network=ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("ActionBarNetwork")
@@ -17,20 +18,31 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
     dragHandle.Active=true
     local dragging=false
     local pointerStart,windowStart
+    local grabOffset=Vector2.new(0,0)
     local changedInput=nil
     local revision=0
     local function dimensions()
         return screenGui.AbsoluteSize
+    end
+    -- AbsolutePosition is screen space; Position is relative to this ScreenGui,
+    -- which starts below the topbar unless it ignores the inset.
+    local function toGuiSpace(absX,absY)
+        if not screenGui.IgnoreGuiInset then
+            local inset=GuiService:GetGuiInset()
+            return absX-inset.X,absY-inset.Y
+        end
+        return absX,absY
     end
     local function clampPos(x,y)
         local screen=dimensions()
         return math.clamp(x,0,math.max(0,screen.X-window.AbsoluteSize.X)),
             math.clamp(y,0,math.max(0,screen.Y-window.AbsoluteSize.Y))
     end
-    local function movePixels(x,y)
-        x,y=clampPos(x,y)
+    local function movePixels(absX,absY)
+        absX,absY=clampPos(absX,absY)
+        local gx,gy=toGuiSpace(absX,absY)
         window.AnchorPoint=Vector2.new(0,0)
-        window.Position=UDim2.fromOffset(math.round(x),math.round(y))
+        window.Position=UDim2.fromOffset(math.round(gx),math.round(gy))
     end
     -- Scale placement: the element keeps its relative position when the window is
     -- resized, instead of staying at a pixel offset measured on an older window.
@@ -75,12 +87,19 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
         dragging=true
         changedInput=input
         pointerStart=UIS:GetMouseLocation()
-        windowStart=window.AbsolutePosition
+        -- Normalise the anchor at grab time, then track the grab point so the
+        -- element cannot jump above or below the cursor when the drag starts.
+        local abs=window.AbsolutePosition
+        windowStart=abs
+        local gx,gy=toGuiSpace(abs.X,abs.Y)
+        window.AnchorPoint=Vector2.new(0,0)
+        window.Position=UDim2.fromOffset(math.round(gx),math.round(gy))
+        grabOffset=Vector2.new(pointerStart.X-abs.X,pointerStart.Y-abs.Y)
     end)
     UIS.InputChanged:Connect(function(input)
         if dragging and input.UserInputType==Enum.UserInputType.MouseMovement then
-            local delta=UIS:GetMouseLocation()-pointerStart
-            movePixels(windowStart.X+delta.X,windowStart.Y+delta.Y)
+            local mouse=UIS:GetMouseLocation()
+            movePixels(mouse.X-grabOffset.X,mouse.Y-grabOffset.Y)
         end
     end)
     UIS.InputEnded:Connect(function(input)

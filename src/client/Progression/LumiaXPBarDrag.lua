@@ -1,6 +1,7 @@
 -- REALMS OF LUMIA V16 | Reliable XP bar dragging and persistence
 -- Keeps the V14 action-bar drag controller untouched. Only the XP bar uses this.
 local UIS = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local workspace = game:GetService("Workspace")
 local Drag = {}
@@ -8,6 +9,17 @@ local Drag = {}
 local function viewportSize()
     local camera = workspace.CurrentCamera
     return camera and camera.ViewportSize or Vector2.new(0, 0)
+end
+-- AbsolutePosition is screen space; Position is relative to the owning ScreenGui,
+-- which starts BELOW the topbar unless the gui ignores the inset. Converting is
+-- what keeps a grab from shifting the element by the inset (~36px).
+local function toGuiSpace(element, absX, absY)
+    local gui = element:FindFirstAncestorWhichIsA("ScreenGui")
+    if gui and not gui.IgnoreGuiInset then
+        local inset = GuiService:GetGuiInset()
+        return absX - inset.X, absY - inset.Y
+    end
+    return absX, absY
 end
 local function valid(value)
     return type(value) == "table" and type(value.X) == "number"
@@ -28,7 +40,7 @@ function Drag.Attach(panel)
     if not getRemote or not setRemote then return end
 
     local dragging = false
-    local mouseStart, panelStart
+    local mouseStart, panelStart, grabOffset
     local revision = 0
     local hadMoved = false
     local connections = {}
@@ -40,10 +52,14 @@ function Drag.Attach(panel)
         return math.clamp(x, 0, math.max(0, screen.X - panel.AbsoluteSize.X)),
             math.clamp(y, 0, math.max(0, screen.Y - panel.AbsoluteSize.Y))
     end
-    local function moveTo(x, y)
-        x, y = clampPixels(x, y)
+    -- Takes ABSOLUTE screen coordinates and writes them into the panel's own
+    -- coordinate space, so the element lands exactly where the cursor is rather
+    -- than being offset by an anchor or a topbar inset.
+    local function moveTo(absX, absY)
+        absX, absY = clampPixels(absX, absY)
+        local gx, gy = toGuiSpace(panel, absX, absY)
         panel.AnchorPoint = Vector2.new(0, 0)
-        panel.Position = UDim2.fromOffset(math.round(x), math.round(y))
+        panel.Position = UDim2.fromOffset(math.round(gx), math.round(gy))
     end
     -- Places the panel using SCALE, so resizing the window keeps it in the same
     -- relative spot instead of stranding it at a stale pixel offset. The upper
@@ -121,13 +137,23 @@ function Drag.Attach(panel)
         hadMoved = false
         revision += 1
         mouseStart = mouse
-        panelStart = panel.AbsolutePosition
+        -- Normalise the anchor at grab time and remember where inside the panel the
+        -- grab happened. The panel then tracks the cursor by that offset, so it can
+        -- never jump above or below the pointer when the drag starts.
+        local abs = panel.AbsolutePosition
+        panelStart = abs
+        local gx, gy = toGuiSpace(panel, abs.X, abs.Y)
+        panel.AnchorPoint = Vector2.new(0, 0)
+        panel.Position = UDim2.fromOffset(math.round(gx), math.round(gy))
+        grabOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
     end)
     connections[#connections + 1] = UIS.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = UIS:GetMouseLocation() - mouseStart
+            local mouse = UIS:GetMouseLocation()
+            local delta = mouse - mouseStart
             if delta.Magnitude > 3 then hadMoved = true end
-            moveTo(panelStart.X + delta.X, panelStart.Y + delta.Y)
+            -- Grab-offset tracking: the grabbed point stays exactly under the cursor.
+            moveTo(mouse.X - grabOffset.X, mouse.Y - grabOffset.Y)
         end
     end)
     connections[#connections + 1] = UIS.InputEnded:Connect(function(input)
