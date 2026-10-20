@@ -6,8 +6,12 @@ MonsterConfig.Definitions = {
         -- Bosses are excluded from the global Difficulty dial; they use BossScale.
         IsBoss = true,
         Level = 5, AggroType = "Aggressive", MaxHealth = 6400, Damage = 45,
-        WanderRadius = 3, DetectionRadius = 35, ChaseLimit = 28,
-        AttackRange = 5.8, AttackCooldown = 2.7, WalkSpeed = 6, ChaseSpeed = 9,
+        WanderRadius = 3, DetectionRadius = 38, ChaseLimit = 34,
+        -- Scaled to BOSS_SCALE 2.4 in GuardianEncounter, so its reach and the height
+        -- it can still hit from are larger than a normal wolf's.
+        AttackRange = 9.5, AttackCooldown = 2.7, WalkSpeed = 7, ChaseSpeed = 10,
+        MeleeStandOffDistance = 8.5, MeleeRetreatDistance = 7.6,
+        MeleeHeightTolerance = 8.0,
         RespawnDelay = 60, ExperienceReward = 600, GoldReward = 250,
     },
     ThornboundWhelp = {

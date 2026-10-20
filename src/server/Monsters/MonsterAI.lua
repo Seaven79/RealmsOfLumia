@@ -190,10 +190,15 @@ function MonsterAI.Run(model, definition, home)
                     tonumber(definition.AttackRange) or standOff,
                     standOff + MELEE_CONTACT_MARGIN
                 )
-                local visible = verticalDistance <= MAX_MELEE_HEIGHT_DIFFERENCE
+                -- Large creatures are taller, so their root sits further from the
+                -- player's. Measuring root-to-root with a small fixed tolerance made
+                -- a scaled boss read as "player is above me" and stop attacking.
+                local heightTolerance = tonumber(definition.MeleeHeightTolerance)
+                    or MAX_MELEE_HEIGHT_DIFFERENCE
+                local visible = verticalDistance <= heightTolerance
                     and hasSight(model, targetRoot)
 
-                if verticalDistance > 5.5 then
+                if verticalDistance > heightTolerance + 2.2 then
                     -- Stage 3a: player is unreachable above. Wolf paths to base,
                     -- waits 8s, then leashes home. Never freezes forever.
                     state = "Chase"
