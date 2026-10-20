@@ -116,14 +116,36 @@ local function clearFight()
     fight=nil
 end
 
--- A ring that marks where the slam will land, then resolves once.
-local function startSlam(boss,phase)
-    local crowd=nearbyPlayers()
-    if #crowd==0 then return end
-    local target=crowd[math.random(#crowd)]
-    local root=rootOf(target)
-    if not root then return end
-    local center=Vector3.new(root.Position.X,anchor.Position.Y+0.15,root.Position.Z)
+-- Ground level under a point. The anchor is not necessarily floor height (it can
+-- sit above uneven terrain), which made the ring float. A downward ray finds the
+-- real surface; characters and the boss are filtered out so nothing hits itself.
+local RING_THICKNESS=0.12
+local function groundBelow(x,y,z,boss)
+    local ignore={boss}
+    for _,player in ipairs(Players:GetPlayers()) do
+        if player.Character then table.insert(ignore,player.Character) end
+    end
+    if fight then
+        for _,add in ipairs(fight.adds) do
+            if add.Parent then table.insert(ignore,add) end
+        end
+    end
+    local params=RaycastParams.new()
+    params.FilterType=Enum.RaycastFilterType.Exclude
+    params.FilterDescendantsInstances=ignore
+    local origin=Vector3.new(x,y+8,z)
+    local hit=Workspace:Raycast(origin,Vector3.new(0,-80,0),params)
+    if hit then return hit.Position.Y end
+    return anchor.Position.Y
+end
+
+-- One ring under one player, drawn flush with the floor and resolved once.
+local function spawnRing(boss,phase,target)
+    if not active then return end
+    local root,humanoid=rootOf(target)
+    if not root or not humanoid then return end
+    local groundY=groundBelow(root.Position.X,root.Position.Y,root.Position.Z,boss)
+    local center=Vector3.new(root.Position.X,groundY+RING_THICKNESS/2,root.Position.Z)
 
     local ring=Instance.new("Part")
     ring.Name="LumiaBossTelegraph"
@@ -135,7 +157,8 @@ local function startSlam(boss,phase)
     ring.Material=Enum.Material.Neon
     ring.Color=Color3.fromRGB(196,63,74)
     ring.Transparency=0.62
-    ring.Size=Vector3.new(0.4,phase.radius*2,phase.radius*2)
+    -- Thin disc lying flat: the cylinder axis is X, so rotate it onto Y.
+    ring.Size=Vector3.new(RING_THICKNESS,phase.radius*2,phase.radius*2)
     ring.CFrame=CFrame.new(center)*CFrame.Angles(0,0,math.rad(90))
     ring.Parent=Workspace
     if fight then fight.telegraphs[#fight.telegraphs+1]=ring end
@@ -146,11 +169,11 @@ local function startSlam(boss,phase)
         ring.Transparency=0.15
         ring.Color=Color3.fromRGB(255,124,84)
         for _,player in ipairs(nearbyPlayers()) do
-            local playerRoot,humanoid=rootOf(player)
-            if playerRoot and humanoid then
+            local playerRoot,playerHumanoid=rootOf(player)
+            if playerRoot and playerHumanoid then
                 local flat=Vector3.new(playerRoot.Position.X,center.Y,playerRoot.Position.Z)
                 if (flat-center).Magnitude<=phase.radius then
-                    humanoid:TakeDamage(CombatStats.IncomingDamage(
+                    playerHumanoid:TakeDamage(CombatStats.IncomingDamage(
                         player,phase.slamDamage*damageScale))
                 end
             end
@@ -159,6 +182,28 @@ local function startSlam(boss,phase)
             if ring.Parent then ring:Destroy() end
         end)
     end)
+end
+
+-- Phase 1 marks one player so the rule is easy to read. From phase 2 every player
+-- in range gets their own ring, staggered slightly - otherwise only the targeted
+-- player had to move and the rest could stand in melee untouched, which made group
+-- fights easier per player than solo.
+local RING_STAGGER=0.28
+local function startSlam(boss,phase)
+    local crowd=nearbyPlayers()
+    if #crowd==0 then return end
+    if phase.id>=2 then
+        for index,target in ipairs(crowd) do
+            local delay=(index-1)*RING_STAGGER
+            if delay<=0 then
+                spawnRing(boss,phase,target)
+            else
+                task.delay(delay,function() spawnRing(boss,phase,target) end)
+            end
+        end
+    else
+        spawnRing(boss,phase,crowd[math.random(#crowd)])
+    end
 end
 
 local function spawnWhelps(boss)
