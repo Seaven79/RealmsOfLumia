@@ -60,7 +60,9 @@ local function ensureGui()
     gui = node("ScreenGui", {
         Name = "LumiaQuestDialog",
         ResetOnSpawn = false,
-        IgnoreGuiInset = false,
+        -- Cover the whole viewport: with the inset respected, the backdrop started
+        -- below the topbar and left an undimmed band across the top of the screen.
+        IgnoreGuiInset = true,
         DisplayOrder = 80,
         Enabled = false,
     }, playerGui)
@@ -202,7 +204,7 @@ local function build()
         Name = "ProgressTrack",
         Position = UDim2.fromOffset(12, 30),
         Size = UDim2.new(1, -24, 0, 10),
-        BackgroundColor3 = Color3.fromRGB(28, 31, 39),
+        BackgroundColor3 = Color3.fromRGB(46, 51, 63),
         BorderSizePixel = 0,
         ZIndex = 93,
     }, objectiveBox), 5)
