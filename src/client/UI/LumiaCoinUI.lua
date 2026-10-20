@@ -27,6 +27,33 @@ function Coins.Create(parent,tier,px)
         Font=Enum.Font.GothamBold,TextScaled=true,TextColor3=spec.edge,TextStrokeTransparency=0.8})
     return disk
 end
+-- Hover help: hovering a coin explains what it is worth. Kept additive so the
+-- wallet structure, holder names and SetWallet lookups are untouched.
+local function groupThousands(n)
+    local text=tostring(math.floor(tonumber(n) or 0))
+    return text:reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","")
+end
+
+local function infoCard(screenGui)
+    local existing=screenGui:FindFirstChild("LumiaCoinInfo")
+    if existing then return existing end
+    local card=new("TextLabel",screenGui,{Name="LumiaCoinInfo",Visible=false,
+        BackgroundColor3=Color3.fromRGB(11,18,32),BackgroundTransparency=0.05,
+        BorderSizePixel=0,Text="",Font=Enum.Font.GothamBold,TextSize=12,
+        TextColor3=Color3.fromRGB(235,242,250),TextWrapped=true,
+        TextXAlignment=Enum.TextXAlignment.Center,TextYAlignment=Enum.TextYAlignment.Center,
+        Size=UDim2.fromOffset(210,26),ZIndex=200})
+    new("UICorner",card,{CornerRadius=UDim.new(0,6)})
+    new("UIStroke",card,{Color=Color3.fromRGB(120,90,50),Thickness=1})
+    return card
+end
+
+local function describeTier(currencyModule,tier)
+    local base=currencyModule.Tiers[#currencyModule.Tiers]
+    if tier.Per<=1 then return tier.Name.."  ·  base unit" end
+    return string.format("%s  ·  %s %s each",tier.Name,groupThousands(tier.Per),base.Name)
+end
+
 function Coins.Wallet(parent,currencyModule,balance,isCompact)
     local highDenom,midDenom,lowDenom=currencyModule.Split(balance)
     -- Holder names come from the shared ladder, so a rename in LumiaCurrency can
@@ -47,6 +74,31 @@ function Coins.Wallet(parent,currencyModule,balance,isCompact)
             Position=UDim2.fromOffset(radius+4,0),Size=UDim2.fromOffset(width-radius-4,radius+2),
             Font=Enum.Font.GothamBold,TextSize=isCompact and 10 or 13,
             TextColor3=Color3.fromRGB(241,221,186),TextXAlignment=Enum.TextXAlignment.Left})
+
+        -- Transparent hover target laid over the coin. A Frame cannot raise
+        -- MouseEnter, and swapping the holder to a button would change the
+        -- structure SetWallet depends on.
+        local hover=new("TextButton",holder,{Name="CoinHover",Text="",
+            BackgroundTransparency=1,AutoButtonColor=false,BorderSizePixel=0,
+            Size=UDim2.fromScale(1,1),ZIndex=2})
+        local tier=currencyModule.Tiers[i]
+        hover.MouseEnter:Connect(function()
+            local screenGui=outer:FindFirstAncestorWhichIsA("ScreenGui")
+            if not screenGui or not tier then return end
+            local card=infoCard(screenGui)
+            card.Text=describeTier(currencyModule,tier)
+            local pos=holder.AbsolutePosition
+            local size=holder.AbsoluteSize
+            card.Position=UDim2.fromOffset(
+                math.floor(pos.X+size.X/2-105),
+                math.max(0,math.floor(pos.Y-30)))
+            card.Visible=true
+        end)
+        hover.MouseLeave:Connect(function()
+            local screenGui=outer:FindFirstAncestorWhichIsA("ScreenGui")
+            local card=screenGui and screenGui:FindFirstChild("LumiaCoinInfo")
+            if card then card.Visible=false end
+        end)
     end
     return outer
 end
