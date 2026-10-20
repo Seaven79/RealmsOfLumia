@@ -15,7 +15,7 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
     assert(kind=="XPBar" or kind=="ActionBar")
     dragHandle.Active=true
     local dragging=false
-    local pointerStart,windowStart,grabOffset
+    local pointerStart,windowStart
     local changedInput=nil
     local revision=0
     local function dimensions()
@@ -55,20 +55,12 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
         dragging=true
         changedInput=input
         pointerStart=UIS:GetMouseLocation()
-        -- The frame is anchored bottom-centre. Flipping to top-left on the first
-        -- movement shifted it up by its own height. Normalise the anchor at grab
-        -- time instead, keeping the frame exactly where it is, and track the grab
-        -- point so the element stays under the cursor while dragging.
-        local abs=window.AbsolutePosition
-        windowStart=abs
-        window.AnchorPoint=Vector2.new(0,0)
-        window.Position=UDim2.fromOffset(math.round(abs.X),math.round(abs.Y))
-        grabOffset=Vector2.new(pointerStart.X-abs.X,pointerStart.Y-abs.Y)
+        windowStart=window.AbsolutePosition
     end)
     UIS.InputChanged:Connect(function(input)
         if dragging and input.UserInputType==Enum.UserInputType.MouseMovement then
-            local mouse=UIS:GetMouseLocation()
-            movePixels(mouse.X-grabOffset.X,mouse.Y-grabOffset.Y)
+            local delta=UIS:GetMouseLocation()-pointerStart
+            movePixels(windowStart.X+delta.X,windowStart.Y+delta.Y)
         end
     end)
     UIS.InputEnded:Connect(function(input)
