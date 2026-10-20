@@ -69,7 +69,7 @@ node("UICorner",{CornerRadius=UDim.new(0,7)},sellTray)
 node("UIStroke",{Color=Color3.fromRGB(129,94,54),Thickness=1.4},sellTray)
 text(sellTray,"TrayIcon","◈",UDim2.fromOffset(17,12),UDim2.fromOffset(42,42),30,gold,true)
 text(sellTray,"TrayTitle","DRAG ITEM FROM BAG HERE",UDim2.fromOffset(74,12),UDim2.fromOffset(321,24),14,cream,true)
-text(sellTray,"TrayNote","Sells 1 item per drop · quest items protected",
+text(sellTray,"TrayNote","Click a bag stack to sell all of it · drag sells 1 · quest items protected",
     UDim2.fromOffset(74,35),UDim2.fromOffset(321,20),11,Color3.fromRGB(178,160,137),false)
 local status=text(frame,"Status","Hover to inspect an item. Drag from the open bag to sell.",
     UDim2.fromOffset(16,426),UDim2.fromOffset(412,38),12,gold,false)
@@ -252,6 +252,17 @@ end,function(item,coordinates)
     if not frame.Visible then return false,"The shop is closed" end
     if type(coordinates)~="table" then return false,"Invalid bag position" end
     return transact("Sell",item.ItemId,coordinates.BagId,coordinates.Slot,item.InstanceId)
+end)
+-- Clicking a stack in the bag sells the whole stack. Dragging still sells one, so
+-- both habits work and the tray hint explains the difference.
+Bridge.SellStackRequested:Connect(function(item,coordinates)
+    if not frame.Visible then return end
+    if type(item)~="table" or type(coordinates)~="table" then return end
+    local def=Items.Get(item.ItemId)
+    if not def or def.Type=="Quest" or def.QuestItem==true then return end
+    if type(def.SellValue)~="number" or def.SellValue<=0 then return end
+    tooltip:Hide()
+    transact("SellStack",item.ItemId,coordinates.BagId,coordinates.Slot,item.InstanceId)
 end)
 local function npcAtMouse()
     local target=mouse.Target

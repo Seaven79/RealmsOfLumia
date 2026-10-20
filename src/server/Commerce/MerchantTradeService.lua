@@ -111,6 +111,34 @@ function Trade:Perform(player,verb,itemId,bagId,bagSlot,instanceId)
             local removed,why=Inventory:RemoveBagQuantityAt(player,bagId,bagSlot,itemId,instanceId,1)
             if not removed then return {Ok=false,Message=tostring(why)} end
             char.Gold+=price
+        elseif verb=="SellStack" then
+            if type(bagId)~="number" or type(bagSlot)~="number"
+                or (instanceId~=nil and type(instanceId)~="string") then
+                return {Ok=false,Message="Invalid bag slot"}
+            end
+            local record=Inventory:GetBagItemAt(player,bagId,bagSlot)
+            if not record or record.ItemId~=itemId or record.InstanceId~=instanceId then
+                return {Ok=false,Message="Inventory changed"}
+            end
+            local def=Items.Get(itemId)
+            local price=def and def.SellValue
+            if not def or def.Type=="Quest" or def.QuestItem
+                or type(price)~="number" or price<=0 then
+                return {Ok=false,Message="Item cannot be sold"}
+            end
+            -- Stack size comes from the server record, never from the client.
+            local quantity=math.max(1,math.floor(tonumber(record.Quantity) or 1))
+            local total=price*quantity
+            if char.Gold+total>self.config.MaxGold then
+                return {Ok=false,Message="Not enough gold capacity for this stack"}
+            end
+            local removedStack,stackWhy=Inventory:RemoveBagQuantityAt(player,bagId,bagSlot,itemId,instanceId,quantity)
+            if not removedStack then return {Ok=false,Message=tostring(stackWhy)} end
+            char.Gold+=total
+            local sold=self:Public(player)
+            sold.Message=string.format("Sold %d x %s",quantity,
+                def.DisplayName or itemId)
+            return sold
         else
             return {Ok=false,Message="Unknown trade action"}
         end

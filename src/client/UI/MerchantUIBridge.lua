@@ -3,6 +3,8 @@
 local Bridge={}
 local changed=Instance.new("BindableEvent")
 Bridge.Changed=changed.Event
+local sellStack=Instance.new("BindableEvent")
+Bridge.SellStackRequested=sellStack.Event
 local active=nil
 function Bridge.Open(merchantWindow)
     active=merchantWindow
@@ -15,5 +17,11 @@ function Bridge.Close(merchantWindow)
 end
 function Bridge.IsOpen()
     return active~=nil and active.Parent~=nil and active.Visible
+end
+-- The bag asks the merchant window to sell a whole stack. The merchant owns the
+-- network call, so the bag does not need to know about CommerceNetwork.
+function Bridge.SellStack(item,coordinates)
+    if type(item)~="table" or type(coordinates)~="table" then return end
+    sellStack:Fire(item,coordinates)
 end
 return Bridge

@@ -265,8 +265,18 @@ local function ensureSection(bag)
         local number = label(slot, "Number", tostring(bagSlot), 0, 0,
             49, 49, 12, Color3.fromRGB(78, 73, 68))
         number.TextXAlignment = Enum.TextXAlignment.Center
-        local widget = { Frame = slot, Border = border, Number = number, Item = nil }
+        local widget = { Frame = slot, Border = border, Number = number, Item = nil,
+            BagId = bagId, Slot = bagSlot }
         widgets[bagSlot] = widget
+        -- With the merchant open, a plain click on a stack sells the whole stack.
+        -- Dragging still works for selling a single unit.
+        slot.MouseButton1Click:Connect(function()
+            if DragDrop.IsDragging() then return end
+            if not ShopBridge.IsOpen() then return end
+            local item = widget.Item
+            if not item or type(item.ItemId) ~= "string" then return end
+            ShopBridge.SellStack(item, { BagId = bagId, Slot = bagSlot })
+        end)
         slot.MouseEnter:Connect(function()
             hoveredSlot = widget
             if widget.Item and not DragDrop.IsDragging() then
