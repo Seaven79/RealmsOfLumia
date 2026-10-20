@@ -33,6 +33,8 @@ end
 local ARENA_RADIUS=46
 local ENGAGE_RADIUS=64
 local REFORM_DELAY=30
+-- Model scale for the boss rig (was 1.45). Cosmetic only.
+local BOSS_SCALE=2.4
 local DESERT_GRACE=20
 
 -- Ring radius is in studs; slamDamage is pre-armor, mitigation is applied through
@@ -184,6 +186,18 @@ local function spawnRing(boss,phase,target)
     end)
 end
 
+-- Turns the whole model to look at a player, flat on the ground plane. Called as
+-- the slam is cast so the wind-up reads as the Guardian choosing its target.
+local function faceTarget(boss,target)
+    local root=rootOf(target)
+    if not root then return end
+    local pivot=boss:GetPivot()
+    local look=Vector3.new(root.Position.X,pivot.Position.Y,root.Position.Z)
+    local flat=Vector3.new(look.X-pivot.Position.X,0,look.Z-pivot.Position.Z)
+    if flat.Magnitude<0.1 then return end
+    boss:PivotTo(CFrame.lookAt(pivot.Position,look))
+end
+
 -- Phase 1 marks one player so the rule is easy to read. From phase 2 every player
 -- in range gets their own ring, staggered slightly - otherwise only the targeted
 -- player had to move and the rest could stand in melee untouched, which made group
@@ -193,6 +207,9 @@ local function startSlam(boss,phase)
     local crowd=nearbyPlayers()
     if #crowd==0 then return end
     if phase.id>=2 then
+        -- Face the first ring's target; later rings are the same cast, so the boss
+        -- should not swivel between them mid-animation.
+        faceTarget(boss,crowd[1])
         for index,target in ipairs(crowd) do
             local delay=(index-1)*RING_STAGGER
             if delay<=0 then
@@ -202,7 +219,9 @@ local function startSlam(boss,phase)
             end
         end
     else
-        spawnRing(boss,phase,crowd[math.random(#crowd)])
+        local target=crowd[math.random(#crowd)]
+        faceTarget(boss,target)
+        spawnRing(boss,phase,target)
     end
 end
 
@@ -276,7 +295,9 @@ local function spawnBoss()
     end
     boss:SetAttribute("LumiaBossEncounter",true)
     boss:SetAttribute("LumiaDamageScale",scaling.damage)
-    pcall(function() boss:ScaleTo(1.45) end)
+    -- Big enough to read as a raid boss from across the arena. ScaleTo keeps the
+    -- rig's joint proportions; it is cosmetic, so health and damage are untouched.
+    pcall(function() boss:ScaleTo(BOSS_SCALE) end)
 
     local humanoid=boss:FindFirstChildOfClass("Humanoid")
     if humanoid then
