@@ -717,6 +717,10 @@ local function bindQuestAction()
         if castBusy then return Enum.ContextActionResult.Sink end
         local caption=targetLabel()
         if caption==nil or caption=="LOOT" then return Enum.ContextActionResult.Pass end
+        -- A merchant is not a quest target. Passing the click through lets the
+        -- merchant's own binding (priority 3200) open the shop; sinking it here
+        -- silently swallowed every shop click.
+        if caption=="TRADE" then return Enum.ContextActionResult.Pass end
         local target=findQuestPart(mouse.Target)
         if not target then return Enum.ContextActionResult.Pass end
         local npcModel=target:FindFirstAncestorOfClass("Model")

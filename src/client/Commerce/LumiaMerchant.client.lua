@@ -261,23 +261,33 @@ end
 local function openMerchant()
     if not npcAtMouse() or busy then return end
     busy=true
-    local ok,reply=pcall(function()return openRemote:InvokeServer()end)
+    -- Wrapped so a render bug surfaces as a visible message plus an Output line
+    -- instead of dying silently and leaving the player with no window.
+    local ok,err=pcall(function()
+        local reply=openRemote:InvokeServer()
+        if not reply or not reply.Ok then
+            notify(reply and reply.Message or "Merchant unavailable")
+            return
+        end
+        layoutShop()
+        frame.Visible=true
+        LumiaModalState:Register("MerchantWindow")
+        render(reply)
+        updateInventory(reply)
+        Bridge.Open(frame)
+        -- Equip comparisons need the equipped map. If nothing has loaded it yet
+        -- (character sheet never opened), ask for it now instead of showing
+        -- "nothing equipped" for gear the player is wearing.
+        if next(EquipmentClient.GetEquipmentView())==nil then
+            EquipmentClient.RequestRefresh()
+        end
+    end)
     busy=false
-    if not ok or not reply or not reply.Ok then
-        notify(reply and reply.Message or "Merchant unavailable")
-        return
-    end
-    layoutShop()
-    frame.Visible=true
-    LumiaModalState:Register("MerchantWindow")
-    render(reply)
-    updateInventory(reply)
-    Bridge.Open(frame)
-    -- Equip comparisons need the equipped map. If nothing has loaded it yet
-    -- (character sheet never opened), ask for it now instead of showing
-    -- "nothing equipped" for gear the player is wearing.
-    if next(EquipmentClient.GetEquipmentView())==nil then
-        EquipmentClient.RequestRefresh()
+    if not ok then
+        frame.Visible=false
+        LumiaModalState:Unregister("MerchantWindow")
+        warn("[Lumia - Commerce] Merchant window failed to open: "..tostring(err))
+        notify("Merchant window failed to open")
     end
 end
 local bindId="Lumia_MerchantInteract"
