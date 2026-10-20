@@ -304,3 +304,50 @@ hitRemote.OnClientEvent:Connect(function(model, damage)
 end)
 
 print("[Lumia - Sword Combat] Sword controls ready - equip MainHand, then click to swing")
+
+-- ===== FIST FALLBACK =====
+-- Weaponless left-click fires RequestSwordAttack; server routes to _onFistAttack.
+-- Punch animation via Motor6D / AnimationConstraint Transform offset (no asset needed).
+
+local UserInputService = game:GetService("UserInputService")
+local fistCooldownUntil = 0
+local FIST_COOLDOWN = 0.6
+local FIST_SWING_TIME = 0.22
+
+local function playFistSwing(character)
+    if not character or not character.Parent then return end
+    local shoulder = jointsFor(character).Shoulder
+    if not shoulder then return end
+    local startTime = os.clock()
+    local conn
+    conn = RunService.PreSimulation:Connect(function()
+        local elapsed = os.clock() - startTime
+        if elapsed >= FIST_SWING_TIME or not shoulder.Parent then
+            conn:Disconnect()
+            return
+        end
+        local phase = math.clamp(elapsed / FIST_SWING_TIME, 0, 1)
+        local punch = math.sin(phase * math.pi)
+        local offset = CFrame.new(0, 0, -0.55 * punch)
+            * CFrame.Angles(math.rad(-78 * punch), 0, 0)
+        shoulder.Transform = shoulder.Transform * offset
+    end)
+end
+
+UserInputService.InputBegan:Connect(function(input, processed)
+    if processed then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+    local character = player.Character
+    if not character then return end
+    local humanoid = character:FindFirstChildOfClass("Humanoid")
+    if not humanoid or humanoid.Health <= 0 then return end
+    if trackedTool then return end
+    if player:GetAttribute("LumiaLootHoverActive") == true then return end
+    local now = os.clock()
+    if now < fistCooldownUntil then return end
+    fistCooldownUntil = now + FIST_COOLDOWN
+    playFistSwing(character)
+    attackRemote:FireServer()
+end)
+
+print("[Lumia - Sword Combat] Fist fallback ready - click with no weapon to punch")

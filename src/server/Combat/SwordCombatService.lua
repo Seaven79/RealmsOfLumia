@@ -588,7 +588,7 @@ function SwordCombatService:_onFistAttack(player, humanoid, root)
     lastAttacks[player] = now
     task.delay(hitDelay, function()
         if player.Parent ~= Players then return end
-        if player.Character ~= character then return end
+        if not player.Character then return end
         if humanoid.Health <= 0 then return end
         local _, liveRoot = humanoidAndRoot(player.Character)
         if not liveRoot then return end
