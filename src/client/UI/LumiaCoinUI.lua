@@ -2,6 +2,7 @@
 -- Full icons rendered using a circular metal disk, subtle bevel, and embossed mark.
 local UserInputService=game:GetService("UserInputService")
 local GuiService=game:GetService("GuiService")
+local RunService=game:GetService("RunService")
 local Coins={}
 local specs={
     Platinum={color=Color3.fromRGB(229,228,226),edge=Color3.fromRGB(118,122,132),mark="✦"},
@@ -45,6 +46,47 @@ local function infoCard(screenGui)
     return card
 end
 
+-- Positions a card beside the pointer. GetMouseLocation includes the topbar
+-- inset, so subtract it when the owning ScreenGui does not ignore the inset
+-- (same rule ItemTooltip uses). Clamped so the card never leaves the viewport.
+local function placeCard(card,screenGui)
+    local mouse=UserInputService:GetMouseLocation()
+    if not screenGui.IgnoreGuiInset then
+        local inset=GuiService:GetGuiInset()
+        mouse=mouse-inset
+    end
+    -- AbsoluteSize can be 0 on the very first frame; fall back to the intended
+    -- size so the first placement is not clamped to the top-left corner.
+    local cardWidth=card.AbsoluteSize.X
+    if not cardWidth or cardWidth<=0 then cardWidth=120 end
+    local cardHeight=card.AbsoluteSize.Y
+    if not cardHeight or cardHeight<=0 then cardHeight=26 end
+    local screen=screenGui.AbsoluteSize
+    card.Position=UDim2.fromOffset(
+        math.clamp(math.floor(mouse.X+18),0,math.max(0,screen.X-cardWidth-4)),
+        math.clamp(math.floor(mouse.Y+18),0,math.max(0,screen.Y-cardHeight-4)))
+end
+
+-- One follower at a time: the card is shared per ScreenGui.
+local followConnection=nil
+local function stopFollowing()
+    if followConnection then
+        followConnection:Disconnect()
+        followConnection=nil
+    end
+end
+local function followPointer(card,screenGui)
+    stopFollowing()
+    placeCard(card,screenGui)
+    followConnection=RunService.RenderStepped:Connect(function()
+        if not card.Visible or not card.Parent then
+            stopFollowing()
+            return
+        end
+        placeCard(card,screenGui)
+    end)
+end
+
 function Coins.Wallet(parent,currencyModule,balance,isCompact)
     local highDenom,midDenom,lowDenom=currencyModule.Split(balance)
     -- Holder names come from the shared ladder, so a rename in LumiaCurrency can
@@ -78,27 +120,14 @@ function Coins.Wallet(parent,currencyModule,balance,isCompact)
             if not screenGui or not tier then return end
             local card=infoCard(screenGui)
             card.Text=tier.Name
-
-            -- Follow the cursor, not the coin: the label belongs to the pointer.
-            -- GetMouseLocation includes the topbar inset, so a ScreenGui that does
-            -- not ignore the inset needs it subtracted (same rule as ItemTooltip).
-            local mouse=UserInputService:GetMouseLocation()
-            if not screenGui.IgnoreGuiInset then
-                local inset=GuiService:GetGuiInset()
-                mouse=mouse-inset
-            end
-            local cardWidth=card.AbsoluteSize.X
-            local cardHeight=card.AbsoluteSize.Y
-            local screen=screenGui.AbsoluteSize
-            card.Position=UDim2.fromOffset(
-                math.clamp(math.floor(mouse.X+18),0,math.max(0,screen.X-cardWidth-4)),
-                math.clamp(math.floor(mouse.Y+18),0,math.max(0,screen.Y-cardHeight-4)))
             card.Visible=true
+            followPointer(card,screenGui)
         end)
         hover.MouseLeave:Connect(function()
             local screenGui=outer:FindFirstAncestorWhichIsA("ScreenGui")
             local card=screenGui and screenGui:FindFirstChild("LumiaCoinInfo")
             if card then card.Visible=false end
+            stopFollowing()
         end)
     end
     return outer
