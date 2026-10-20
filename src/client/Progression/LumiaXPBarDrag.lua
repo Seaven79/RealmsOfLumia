@@ -28,7 +28,7 @@ function Drag.Attach(panel)
     if not getRemote or not setRemote then return end
 
     local dragging = false
-    local mouseStart, panelStart
+    local mouseStart, panelStart, grabOffset
     local revision = 0
     local hadMoved = false
     local connections = {}
@@ -100,13 +100,24 @@ function Drag.Attach(panel)
         hadMoved = false
         revision += 1
         mouseStart = mouse
-        panelStart = panel.AbsolutePosition
+        -- The panel starts anchored bottom-centre. Switching to top-left on the
+        -- FIRST MOVEMENT made it jump up by its own height, because the anchor
+        -- point changed while Position stayed put. Normalise the anchor here, at
+        -- the grab, writing the position that keeps the panel exactly where it is,
+        -- and remember where inside the panel the grab happened.
+        local abs = panel.AbsolutePosition
+        panelStart = abs
+        panel.AnchorPoint = Vector2.new(0, 0)
+        panel.Position = UDim2.fromOffset(math.round(abs.X), math.round(abs.Y))
+        grabOffset = Vector2.new(mouse.X - abs.X, mouse.Y - abs.Y)
     end)
     connections[#connections + 1] = UIS.InputChanged:Connect(function(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = UIS:GetMouseLocation() - mouseStart
+            local mouse = UIS:GetMouseLocation()
+            local delta = mouse - mouseStart
             if delta.Magnitude > 3 then hadMoved = true end
-            moveTo(panelStart.X + delta.X, panelStart.Y + delta.Y)
+            -- Grab-point tracking: whatever pixel you grabbed stays under the cursor.
+            moveTo(mouse.X - grabOffset.X, mouse.Y - grabOffset.Y)
         end
     end)
     connections[#connections + 1] = UIS.InputEnded:Connect(function(input)
