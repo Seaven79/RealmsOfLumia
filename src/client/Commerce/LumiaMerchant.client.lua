@@ -258,6 +258,49 @@ local function npcAtMouse()
     local model=target and target:FindFirstAncestorOfClass("Model")
     return model and model:GetAttribute("LumiaMerchant") and model or nil
 end
+-- Shared by both entry points: the interact key and the server's ProximityPrompt.
+local function showShop(reply)
+    layoutShop()
+    frame.Visible=true
+    LumiaModalState:Register("MerchantWindow")
+    render(reply)
+    updateInventory(reply)
+    Bridge.Open(frame)
+    -- Equip comparisons need the equipped map. If nothing has loaded it yet
+    -- (character sheet never opened), ask for it now instead of showing
+    -- "nothing equipped" for gear the player is wearing.
+    if next(EquipmentClient.GetEquipmentView())==nil then
+        EquipmentClient.RequestRefresh()
+    end
+end
+
+-- Server-driven open: pressing E on the merchant's ProximityPrompt. This path
+-- cannot fail because of a cursor raycast or an action-priority conflict.
+-- WaitForChild with a timeout: the remote is created a moment after the folder,
+-- so a FindFirstChild here could legitimately miss it on a fast join.
+task.spawn(function()
+    local openedEvent=net:WaitForChild("MerchantOpened",30)
+    if not openedEvent then
+        warn("[Lumia - Commerce] MerchantOpened remote missing; prompt opens disabled")
+        return
+    end
+    openedEvent.OnClientEvent:Connect(function(reply)
+        if frame.Visible then return end
+        if type(reply)~="table" or not reply.Ok then
+            local message=type(reply)=="table" and reply.Message
+            if message then notify(message) end
+            return
+        end
+        local ok,err=pcall(showShop,reply)
+        if not ok then
+            frame.Visible=false
+            LumiaModalState:Unregister("MerchantWindow")
+            warn("[Lumia - Commerce] Shop render failed: "..tostring(err))
+            notify("Merchant window failed to open")
+        end
+    end)
+end)
+
 local function openMerchant()
     if busy then return end
     busy=true
@@ -272,18 +315,7 @@ local function openMerchant()
             end
             return
         end
-        layoutShop()
-        frame.Visible=true
-        LumiaModalState:Register("MerchantWindow")
-        render(reply)
-        updateInventory(reply)
-        Bridge.Open(frame)
-        -- Equip comparisons need the equipped map. If nothing has loaded it yet
-        -- (character sheet never opened), ask for it now instead of showing
-        -- "nothing equipped" for gear the player is wearing.
-        if next(EquipmentClient.GetEquipmentView())==nil then
-            EquipmentClient.RequestRefresh()
-        end
+        showShop(reply)
     end)
     busy=false
     if not ok then

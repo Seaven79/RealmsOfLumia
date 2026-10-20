@@ -26,6 +26,7 @@ local function create(id, title, level, localX, localZ)
     model.Name=id
     model:SetAttribute("LumiaMerchant",true)
     model:SetAttribute("LumiaMerchantTier",level)
+    model:SetAttribute("LumiaMerchantTitle",title)
     model:SetAttribute("LumiaNPCType","Merchant")
     model.Parent=folder
     local cf=grass.CFrame*CFrame.new(localX,top, localZ)

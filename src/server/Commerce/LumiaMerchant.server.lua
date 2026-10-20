@@ -197,6 +197,7 @@ local function place()
         decor("Head",Vector3.new(1.2,1.2,1.2),Color3.fromRGB(221,170,125),Enum.Material.SmoothPlastic,npcBase*CFrame.new(0,4.4,0),merchant)
     end
     merchant:SetAttribute("LumiaMerchant",true)
+    merchant:SetAttribute("LumiaMerchantTitle","Mira the Trader")
     merchant:SetAttribute("LumiaNPCType","Merchant")
     CollectionService:AddTag(merchant,"LumiaMerchant")
     local head=merchant:FindFirstChild("Head") or merchant.PrimaryPart
@@ -270,7 +271,7 @@ local function nearestTrade(player)
     end
     return nearest, blockedLevel
 end
-open.OnServerInvoke=function(player)
+local function openFor(player)
     local selected,blockedLevel=nearestTrade(player)
     if not selected then
         if blockedLevel then
@@ -288,6 +289,67 @@ open.OnServerInvoke=function(player)
     if response and response.Ok then activeTrade[player]=selected end
     return response
 end
+open.OnServerInvoke=function(player) return openFor(player) end
+
+-- Server-driven interaction. ProximityPrompt does not depend on mouse.Target, on
+-- ContextActionService priority, or on the player's interact keybind, so a shop
+-- can never silently fail to open because a cursor raycast missed the NPC.
+local opened=net:FindFirstChild("MerchantOpened")
+if not opened then
+    opened=Instance.new("RemoteEvent")
+    opened.Name="MerchantOpened"
+    opened.Parent=net
+end
+
+local function attachPrompt(model)
+    if not model or not model:IsA("Model") then return end
+    if model:GetAttribute("LumiaTradePromptReady") then return end
+    local host=model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
+    if not host then return end
+    model:SetAttribute("LumiaTradePromptReady",true)
+
+    local prompt=Instance.new("ProximityPrompt")
+    prompt.Name="LumiaTradePrompt"
+    prompt.ActionText="Trade"
+    prompt.ObjectText=model:GetAttribute("LumiaMerchantTitle") or model.Name
+    prompt.KeyboardKeyCode=Enum.KeyCode.E
+    prompt.GamepadKeyCode=Enum.KeyCode.ButtonX
+    prompt.MaxActivationDistance=12
+    prompt.HoldDuration=0
+    prompt.RequiresLineOfSight=false
+    prompt.Parent=host
+
+    prompt.Triggered:Connect(function(player)
+        local reply=openFor(player)
+        if not reply then return end
+        if reply.Ok then
+            opened:FireClient(player,reply)
+        elseif not reply.Silent then
+            opened:FireClient(player,{Ok=false,Message=reply.Message})
+        end
+    end)
+end
+
+-- Attach to Mira and to every regional merchant, including ones spawned later.
+task.spawn(function()
+    local seen=setmetatable({},{__mode="k"})
+    while true do
+        local scene=Workspace:FindFirstChild("LumiaMerchantScene")
+        local regional=Workspace:FindFirstChild("LumiaRegionMerchants")
+        for _,container in ipairs({scene,regional}) do
+            if container then
+                for _,model in ipairs(container:GetChildren()) do
+                    if model:IsA("Model") and model:GetAttribute("LumiaMerchant")
+                        and not seen[model] then
+                        seen[model]=true
+                        attachPrompt(model)
+                    end
+                end
+            end
+        end
+        task.wait(2)
+    end
+end)
 action.OnServerInvoke=function(player,verb,itemId,bagId,bagSlot,instanceId)
     local selected=activeTrade[player]
     if verb=="UsePotion" then return trades:Perform(player,verb,itemId,bagId,bagSlot,instanceId) end
