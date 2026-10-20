@@ -17,9 +17,21 @@ local DragDrop=require(base:WaitForChild("UI"):WaitForChild("EquipmentDragDrop")
 local Bridge=require(base:WaitForChild("UI"):WaitForChild("MerchantUIBridge"))
 local EquipmentClient=require(base:WaitForChild("UI"):WaitForChild("EquipmentClient"))
 local EquipmentRules=require(Shared:WaitForChild("Equipment"):WaitForChild("EquipmentRules"))
-local net=ReplicatedStorage.Lumia:WaitForChild("CommerceNetwork")
-local openRemote=net:WaitForChild("OpenMerchant")
-local action=net:WaitForChild("MerchantAction")
+print("[Lumia - Commerce] merchant client starting")
+
+local net=ReplicatedStorage.Lumia:WaitForChild("CommerceNetwork",20)
+if not net then
+    -- Loud on purpose: the whole shop is unreachable without the server bridge,
+    -- and a silent WaitForChild here looked like "clicking does nothing".
+    warn("[Lumia - Commerce] CommerceNetwork never appeared - the merchant server script did not start")
+    return
+end
+local openRemote=net:WaitForChild("OpenMerchant",20)
+if not openRemote then
+    warn("[Lumia - Commerce] OpenMerchant remote missing")
+    return
+end
+local action=net:WaitForChild("MerchantAction",20)
 local gui=Instance.new("ScreenGui")
 gui.Name="LumiaMerchantUI";gui.ResetOnSpawn=false
 gui.IgnoreGuiInset=true;gui.DisplayOrder=70
@@ -258,7 +270,7 @@ local function npcAtMouse()
     local model=target and target:FindFirstAncestorOfClass("Model")
     return model and model:GetAttribute("LumiaMerchant") and model or nil
 end
--- Shared by both entry points: the interact key and the server's ProximityPrompt.
+-- Shared by both entry points: the interact key and the server's ClickDetector.
 local function showShop(reply)
     layoutShop()
     frame.Visible=true
@@ -274,8 +286,8 @@ local function showShop(reply)
     end
 end
 
--- Server-driven open: pressing E on the merchant's ProximityPrompt. This path
--- cannot fail because of a cursor raycast or an action-priority conflict.
+-- Server-driven open: clicking the merchant (ClickDetector). This path cannot
+-- fail because of a cursor raycast or an action-priority conflict.
 -- WaitForChild with a timeout: the remote is created a moment after the folder,
 -- so a FindFirstChild here could legitimately miss it on a fast join.
 task.spawn(function()

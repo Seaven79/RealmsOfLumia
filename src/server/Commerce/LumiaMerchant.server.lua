@@ -291,9 +291,9 @@ local function openFor(player)
 end
 open.OnServerInvoke=function(player) return openFor(player) end
 
--- Server-driven interaction. ProximityPrompt does not depend on mouse.Target, on
--- ContextActionService priority, or on the player's interact keybind, so a shop
--- can never silently fail to open because a cursor raycast missed the NPC.
+-- Server-driven interaction. ClickDetector needs no cursor raycast, no
+-- ContextActionService priority and no keybind, so a shop cannot silently fail
+-- to open. No visible prompt is created: the player just clicks the merchant.
 local opened=net:FindFirstChild("MerchantOpened")
 if not opened then
     opened=Instance.new("RemoteEvent")
@@ -301,25 +301,19 @@ if not opened then
     opened.Parent=net
 end
 
-local function attachPrompt(model)
+local function attachClick(model)
     if not model or not model:IsA("Model") then return end
-    if model:GetAttribute("LumiaTradePromptReady") then return end
+    if model:GetAttribute("LumiaTradeClickReady") then return end
     local host=model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
     if not host then return end
-    model:SetAttribute("LumiaTradePromptReady",true)
+    model:SetAttribute("LumiaTradeClickReady",true)
 
-    local prompt=Instance.new("ProximityPrompt")
-    prompt.Name="LumiaTradePrompt"
-    prompt.ActionText="Trade"
-    prompt.ObjectText=model:GetAttribute("LumiaMerchantTitle") or model.Name
-    prompt.KeyboardKeyCode=Enum.KeyCode.E
-    prompt.GamepadKeyCode=Enum.KeyCode.ButtonX
-    prompt.MaxActivationDistance=12
-    prompt.HoldDuration=0
-    prompt.RequiresLineOfSight=false
-    prompt.Parent=host
+    local detector=Instance.new("ClickDetector")
+    detector.Name="LumiaTradeClick"
+    detector.MaxActivationDistance=20
+    detector.Parent=host
 
-    prompt.Triggered:Connect(function(player)
+    detector.MouseClick:Connect(function(player)
         local reply=openFor(player)
         if not reply then return end
         if reply.Ok then
@@ -327,7 +321,14 @@ local function attachPrompt(model)
         elseif not reply.Silent then
             opened:FireClient(player,{Ok=false,Message=reply.Message})
         end
+        if Workspace:GetAttribute("LumiaMerchantDebug")==true then
+            print(string.format("[Lumia - Commerce] click from %s -> Ok=%s %s",
+                player.Name,tostring(reply.Ok),tostring(reply.Message or "")))
+        end
     end)
+    if Workspace:GetAttribute("LumiaMerchantDebug")==true then
+        print("[Lumia - Commerce] click detector attached to "..model:GetFullName())
+    end
 end
 
 -- Attach to Mira and to every regional merchant, including ones spawned later.
@@ -342,7 +343,7 @@ task.spawn(function()
                     if model:IsA("Model") and model:GetAttribute("LumiaMerchant")
                         and not seen[model] then
                         seen[model]=true
-                        attachPrompt(model)
+                        attachClick(model)
                     end
                 end
             end
