@@ -137,10 +137,10 @@ Events.Died.Event:Connect(function(model, monsterId)
             end
             local coins = model:GetAttribute("LumiaSpawnGold")
             if type(coins) ~= "number" then
-                local mobConfig = require(shared:WaitForChild("Monsters"):WaitForChild("MonsterConfig"))
-                local base = mobConfig.Definitions[monsterId]
-                coins = CurveLab:Adjust("Gold", monsterLevel,
-                    base and base.GoldReward or 0, 1000000)
+                -- Legacy monsters spawned before the snapshot existed. Apply the
+                -- global reward dial so live tuning still holds.
+                coins = BalanceService:GetMonsterRewardGold(monsterId)
+                if type(coins) ~= "number" then coins = 0 end
             end
             if type(coins)=="number" and coins>=1 and coins<=1000000 and coins%1==0 then
                 ProgressionService:AddGold(recipient, coins)

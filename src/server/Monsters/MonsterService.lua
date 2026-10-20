@@ -112,6 +112,15 @@ function MonsterService:SpawnMonster(monsterId, position, managedSpawn)
         return nil
     end
 
+    -- Global dials. Trash mobs follow Difficulty; bosses follow BossScale so a
+    -- hellish world does not automatically trivialise or ruin the boss fight.
+    local isBoss = definition.IsBoss == true
+    local healthScale = Balance:GetGlobal(isBoss and "BossScale" or "Difficulty")
+    if healthScale ~= 1 then
+        definition.MaxHealth = math.max(1, math.floor(definition.MaxHealth * healthScale + 0.5))
+        definition.Damage = math.max(0, math.floor(definition.Damage * healthScale + 0.5))
+    end
+
     local model = CreatureFactory.Create(monsterId, definition)
 
     if not model then
@@ -126,9 +135,9 @@ function MonsterService:SpawnMonster(monsterId, position, managedSpawn)
     model:SetAttribute("AggroType", definition.AggroType)
 
     -- Lock rewards to this spawn so publishing new curves mid-fight
-    -- cannot change its XP/gold. Mob types keep their original baseline.
-    local baseXP = Balance:GetMonsterXP(monsterId) or 0
-    local baseGold = (MonsterConfig.Definitions[monsterId] or {}).GoldReward or 0
+    -- cannot change its XP/gold. Global reward dials are applied here, once.
+    local baseXP = Balance:GetMonsterRewardXP(monsterId) or 0
+    local baseGold = Balance:GetMonsterRewardGold(monsterId) or 0
     model:SetAttribute("LumiaSpawnXP", CurveLab:Adjust("KillXP", definition.Level, baseXP, 1000000))
     model:SetAttribute("LumiaSpawnGold", CurveLab:Adjust("Gold", definition.Level, baseGold, 1000000))
     -- Spawn-time snapshots. Live config changes never mutate living monsters.

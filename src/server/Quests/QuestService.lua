@@ -12,6 +12,7 @@ local PlayerPositions = require(game:GetService("ReplicatedStorage"):WaitForChil
 local Life = require(services:WaitForChild("Monsters"):WaitForChild("MonsterLifecycleEvents"))
 local Config = require(ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared"):WaitForChild("Quests"):WaitForChild("QuestConfig"))
 local Currency=require(ReplicatedStorage.Lumia.Shared:WaitForChild("Commerce"):WaitForChild("LumiaCurrency"))
+local BalanceService = require(services:WaitForChild("Admin"):WaitForChild("BalanceService"))
 local Service = {}
 local started = false
 local notifier
@@ -174,14 +175,18 @@ function Service:TurnIn(player)
     if not completed then return false,"Objectives not complete" end
     busy[player]=true
     -- Reward before marking completion. No yields here: one user cannot claim twice.
-    local goldOK,goldReason=Progression:AddGold(player,q.Gold)
+    -- Order of precedence: authoring override -> QuestConfig value, then the
+    -- global QuestRewards dial is applied on top of whichever won.
+    local goldReward = BalanceService:GetEffectiveQuestRewardGold(q.Id) or q.Gold
+    local xpReward = BalanceService:GetEffectiveQuestRewardXP(q.Id) or q.XP
+    local goldOK,goldReason=Progression:AddGold(player,goldReward)
     -- Rejection at max level is normal; the quest can still complete.
     if not goldOK then
         busy[player]=nil
         warn("[Lumia - Quest Service] Turn-in rejected: "..tostring(goldReason))
         return false,"Reward could not be granted; please try again"
     end
-    local xpOK,xpReason=Progression:AddXP(player,q.XP)
+    local xpOK,xpReason=Progression:AddXP(player,xpReward)
     if not xpOK then print("[Lumia - Quest Service] XP not granted: "..tostring(xpReason)) end
     if q.Kind=="Collect" then
         local removed,reason=Inventory:RemoveQuantity(player,q.DropItemId,q.Count)
@@ -201,7 +206,7 @@ function Service:TurnIn(player)
     busy[player]=nil
     self:Notify(player)
     print("[Lumia - Quest Service] Turn-in "..q.Id.." by "..player.Name)
-    return true,"Quest complete: "..q.Name.." | +"..Currency.FormatShort(q.Gold)
+    return true,"Quest complete: "..q.Name.." | +"..Currency.FormatShort(goldReward)
 end
 
 -- DEV ONLY: user-initiated reset of this campaign for the owner, no level/gold/inventory changes.
