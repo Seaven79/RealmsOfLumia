@@ -67,18 +67,37 @@ local function placeCard(card,screenGui)
         math.clamp(math.floor(mouse.Y+18),0,math.max(0,screen.Y-cardHeight-4)))
 end
 
--- One follower at a time: the card is shared per ScreenGui.
+-- Followers are dropped whenever the card hides, so an idle wallet costs nothing.
 local followConnection=nil
+local moveConnection=nil
 local function stopFollowing()
     if followConnection then
         followConnection:Disconnect()
         followConnection=nil
     end
+    if moveConnection then
+        moveConnection:Disconnect()
+        moveConnection=nil
+    end
 end
 local function followPointer(card,screenGui)
     stopFollowing()
     placeCard(card,screenGui)
+    -- RenderStepped runs before the frame is drawn, so the card is placed with the
+    -- freshest position available for that frame.
     followConnection=RunService.RenderStepped:Connect(function()
+        if not card.Visible or not card.Parent then
+            stopFollowing()
+            return
+        end
+        placeCard(card,screenGui)
+    end)
+    -- Mouse movement events arrive on the input stream, which can be sampled more
+    -- often than the frame rate. Updating here removes the sub-frame delay that
+    -- makes a fast-moving cursor appear to outrun its label.
+    moveConnection=UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType~=Enum.UserInputType.MouseMovement
+            and input.UserInputType~=Enum.UserInputType.Touch then return end
         if not card.Visible or not card.Parent then
             stopFollowing()
             return
