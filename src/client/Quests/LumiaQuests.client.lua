@@ -539,18 +539,13 @@ local hint=round(ui("TextLabel",{
     TextColor3=Color3.fromRGB(243,207,139),
     BackgroundColor3=Color3.fromRGB(27,23,19),ZIndex=141,
 },pointer),4)
-local mouseWasEnabled
+-- The native cursor is NEVER hidden. This star is a badge that travels with the
+-- real pointer, not a replacement for it: replacing the cursor put the visible
+-- glyph ~26px right and ~22px below the true click point, which felt like a
+-- cursor that was out of sync with the aim.
+UserInputService.MouseIconEnabled = true
+
 local function setPointer(show,caption)
-    if show and not pointer.Visible then
-        mouseWasEnabled=UserInputService.MouseIconEnabled
-        UserInputService.MouseIconEnabled=false
-    elseif not show and pointer.Visible then
-        -- Always restore a visible cursor rather than replaying whatever value
-        -- was captured: the player may be about to click a shop item, and a
-        -- stale "hidden" restore would leave them with no cursor at all.
-        UserInputService.MouseIconEnabled=true
-        mouseWasEnabled=nil
-    end
     pointer.Visible=show
     if show then
         hint.Text=caption or "INTERACT"

@@ -155,8 +155,13 @@ Server path: `AdminBridge.handlers.ResetLevel` → `ProgressionService:ResetProg
 ## Modal windows and the mouse cursor
 
 `LumiaModalState` is the single source of truth for "is a window open". The quest
-pointer uses it to decide whether to replace the native cursor with its own glyph
-— while a modal is open the player needs a real cursor to click items.
+pointer hides itself while a modal is open, because the badge would otherwise sit
+next to a cursor the player is using to click items.
+
+The pointer is a **badge beside the real cursor, not a replacement for it**. It
+deliberately never touches `MouseIconEnabled`: replacing the cursor placed the
+visible glyph ~26px right and ~22px below the true click point, which read as a
+cursor out of sync with the aim.
 
 **Invariant: every `Register(name)` needs a matching `Unregister(name)` on EVERY
 path that hides the window.** A leaked registration is not cosmetic: it makes
