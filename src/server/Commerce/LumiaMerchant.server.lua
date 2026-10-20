@@ -219,6 +219,7 @@ task.spawn(place)
 -- Network bridge only. MerchantTradeService owns validated business logic and
 -- supports future merchants with different catalog modules/placement resolvers.
 local TradeService=require(script.Parent:WaitForChild("MerchantTradeService"))
+local OwnerUserId=require(script.Parent.Parent:WaitForChild("Admin"):WaitForChild("BalanceSettings")).OwnerUserId
 local trades=TradeService.new({Merchant=function() return merchant end,Config=cfg})
 local GearCatalog=require(shared:WaitForChild("Commerce"):WaitForChild("GearCatalog"))
 local activeTrade=setmetatable({}, {__mode="k"})
@@ -226,45 +227,61 @@ local regionalTrades=setmetatable({}, {__mode="k"})
 local function nearestTrade(player)
     local c=player.Character
     local root=c and c:FindFirstChild("HumanoidRootPart")
-    if not root then return nil end
+    if not root then return nil, nil end
     local nearest, distance = nil, 16
     if merchant and merchant.Parent then
         local d=(merchant:GetPivot().Position-root.Position).Magnitude
         if d <= distance then nearest=trades; distance=d end
     end
+    -- A gear merchant the player is standing at but is not high enough level for.
+    -- Reported separately so the shop can say WHY instead of "come closer".
+    local blockedLevel=nil
     local folder=Workspace:FindFirstChild("LumiaRegionMerchants")
     if folder then
         for _,npc in ipairs(folder:GetChildren()) do
             if npc:IsA("Model") and npc:GetAttribute("LumiaMerchant") then
                 local level=npc:GetAttribute("LumiaMerchantTier")
                 local profile=data:GetProfile(player)
-                if type(level)=="number" and profile and profile.Character.Level>=level then
-                    local d=(npc:GetPivot().Position-root.Position).Magnitude
-                    if d<=distance then
-                        if not regionalTrades[npc] then
-                            local names={[2]="Orin the Outfitter",[3]="Nessa of the Creek",
-                                [4]="Bram the Quartermaster",[5]="Serin the Armorer"}
-                            local merchantCfg={MerchantName=names[level] or "Regional Merchant",
-                                InteractionRange=16,MaxGold=2000000000}
-                            function merchantCfg.GetStock()
-                                local stock=GearCatalog.GetStock(level)
-                                table.insert(stock,{ItemId="FieldPotion", Price=12})
-                                return stock
-                            end
-                            regionalTrades[npc]=TradeService.new({Merchant=function() return npc end,Config=merchantCfg})
+                local playerLevel=profile and profile.Character.Level or 1
+                local inRange=(npc:GetPivot().Position-root.Position).Magnitude<=distance
+                -- The owner can trade at any tier: this is a development build and
+                -- tuning gear tiers requires reaching a deliberately gated shop.
+                local allowed=(type(level)~="number") or (playerLevel>=level) or (player.UserId==OwnerUserId)
+                if inRange and not allowed then
+                    if not blockedLevel or level<blockedLevel then blockedLevel=level end
+                elseif inRange then
+                    if not regionalTrades[npc] then
+                        local names={[2]="Orin the Outfitter",[3]="Nessa of the Creek",
+                            [4]="Bram the Quartermaster",[5]="Serin the Armorer"}
+                        local merchantCfg={MerchantName=names[level] or "Regional Merchant",
+                            InteractionRange=16,MaxGold=2000000000}
+                        function merchantCfg.GetStock()
+                            local stock=GearCatalog.GetStock(level)
+                            table.insert(stock,{ItemId="FieldPotion", Price=12})
+                            return stock
                         end
-                        nearest=regionalTrades[npc]
-                        distance=d
+                        regionalTrades[npc]=TradeService.new({Merchant=function() return npc end,Config=merchantCfg})
                     end
+                    nearest=regionalTrades[npc]
+                    distance=(npc:GetPivot().Position-root.Position).Magnitude
                 end
             end
         end
     end
-    return nearest
+    return nearest, blockedLevel
 end
 open.OnServerInvoke=function(player)
-    local selected=nearestTrade(player)
-    if not selected then return {Ok=false,Message="Come closer to the merchant"} end
+    local selected,blockedLevel=nearestTrade(player)
+    if not selected then
+        if blockedLevel then
+            local profile=data:GetProfile(player)
+            local playerLevel=profile and profile.Character.Level or 1
+            return {Ok=false,Message=string.format(
+                "This merchant sells level %d gear - you are level %d",
+                blockedLevel,playerLevel)}
+        end
+        return {Ok=false,Message="Come closer to the merchant"}
+    end
     local response=selected:Open(player)
     if response and response.Ok then activeTrade[player]=selected end
     return response
