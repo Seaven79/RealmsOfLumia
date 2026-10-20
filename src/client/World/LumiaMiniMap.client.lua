@@ -193,13 +193,24 @@ local function update()
     if questWorld then table.insert(npcWorlds,questWorld) end
     local shopScene=workspace:FindFirstChild("LumiaMerchantScene")
     if shopScene then table.insert(npcWorlds,shopScene) end
+    local shardWorld=workspace:FindFirstChild("LumiaSoulShards")
+    if shardWorld then table.insert(npcWorlds,shardWorld) end
     for _,npcWorld in ipairs(npcWorlds) do
         if npcWorld then for _,npc in ipairs(npcWorld:GetChildren()) do
-            if npc:IsA("Model") and npc:GetAttribute("LumiaNPCType") then
+            -- Soul shards are drawn for their owner only; other players' drops
+            -- are none of your business.
+            local isShard=npc:GetAttribute("LumiaSoulShard")==true
+            local tracked=isShard
+                and npc:GetAttribute("LumiaShardOwnerUserId")==player.UserId
+                or (not isShard and npc:GetAttribute("LumiaNPCType")~=nil)
+            if npc:IsA("Model") and tracked then
                 local npcRoot=npc:FindFirstChild("HumanoidRootPart") or npc.PrimaryPart
                 if npcRoot then
                     local u,v,visible=coords(npcRoot.Position,origin)
                     local dot=getNPCDot(npc)
+                    dot.BackgroundColor3=isShard
+                        and Color3.fromRGB(120,200,255)
+                        or Color3.fromRGB(252,213,126)
                     dot.Visible=visible
                     if visible then dot.Position=UDim2.fromOffset(u,v) end
                 end

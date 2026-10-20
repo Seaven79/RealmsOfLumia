@@ -182,6 +182,14 @@ local function spawnShard(player, position, gold, xp, itemsJson, equipJson)
     end)
 
     print("[SHARD] shard spawned: " .. tostring(gold) .. "g " .. tostring(xp) .. "xp")
+
+    -- Tell the owner where their shard fell. The client cannot see the drop
+    -- otherwise: the loss is silent until someone walks into the crystal.
+    if onDropped then
+        local itemCount = #decodeTable(itemsJson)
+        onDropped:FireClient(player, gold, xp, itemCount, position)
+    end
+
     return model
 end
 
@@ -235,6 +243,21 @@ local function destroyShardFor(userId)
     if model and model.Parent then model:Destroy() end
 end
 
+-- Remove an existing shard and return what it was holding so a repeat death
+-- can carry the payload forward instead of deleting it.
+local function takeExistingShard(userId)
+    local model = shardByUser[userId]
+    shardByUser[userId] = nil
+    if not model then return 0, 0, {}, {} end
+
+    local gold = tonumber(model:GetAttribute(GOLD_ATTRIBUTE)) or 0
+    local xp = tonumber(model:GetAttribute(XP_ATTRIBUTE)) or 0
+    local items = decodeTable(model:GetAttribute(ITEMS_ATTRIBUTE))
+    local equip = decodeTable(model:GetAttribute(EQUIP_ATTRIBUTE))
+    if model.Parent then model:Destroy() end
+    return gold, xp, items, equip
+end
+
 local function handleDeath(player, character)
     if not dataService then return end
     local profile = dataService:GetProfileUnchecked(player)
@@ -258,12 +281,35 @@ local function handleDeath(player, character)
     if type(profile.Character) == "table" then
         gold = tonumber(profile.Character.Gold) or 0
         xp = tonumber(profile.Character.Experience) or 0
-        profile.Character.Gold = 0
-        profile.Character.Experience = 0
     end
     if type(profile.Inventory) == "table" then
         items = profile.Inventory.Items or {}
         equip = profile.Inventory.Equipment or {}
+    end
+
+    local lostItemCount = 0
+    for _, record in ipairs(items) do
+        if type(record) == "table" and (tonumber(record.Quantity) or 1) > 0 then
+            lostItemCount = lostItemCount + 1
+        end
+    end
+    for _ in pairs(equip) do
+        lostItemCount = lostItemCount + 1
+    end
+
+    -- A fresh character owns nothing. Spawning an empty shard would leave a
+    -- worthless crystal on the ground and an alarming loss message.
+    if gold <= 0 and xp <= 0 and lostItemCount == 0 then
+        print("[SHARD] " .. player.Name .. " died with nothing to lose, no shard dropped")
+        return
+    end
+
+    -- Consume the profile only once a shard is certain to hold it.
+    if type(profile.Character) == "table" then
+        profile.Character.Gold = 0
+        profile.Character.Experience = 0
+    end
+    if type(profile.Inventory) == "table" then
         profile.Inventory.Items = {}
         profile.Inventory.Equipment = {}
     end
@@ -281,14 +327,37 @@ local function handleDeath(player, character)
         end
     end
 
-    destroyShardFor(player.UserId)
+    -- Dying a second time before recovering must not erase the first shard's
+    -- contents. Fold the old shard's payload into the new one instead.
+    local oldGold, oldXp, oldItems, oldEquip = takeExistingShard(player.UserId)
+    gold = gold + oldGold
+    xp = xp + oldXp
+    for _, record in ipairs(oldItems) do
+        table.insert(items, record)
+    end
+    for slot, instanceId in pairs(oldEquip) do
+        equip[slot] = instanceId
+    end
 
     local rootPart = char and char:FindFirstChild("HumanoidRootPart")
     if not rootPart then return end
 
+    -- A death mid-fall or over water leaves the root above the world. Snap the
+    -- shard to the surface below the body so it is always physically reachable.
+    local dropPosition = rootPart.Position
+    local rayParams = RaycastParams.new()
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    rayParams.FilterDescendantsInstances = { char }
+    rayParams.IgnoreWater = true
+    local ground = Workspace:Raycast(
+        dropPosition + Vector3.new(0, 3, 0), Vector3.new(0, -80, 0), rayParams)
+    if ground then
+        dropPosition = ground.Position
+    end
+
     local itemsJson = encodeTable(items)
     local equipJson = encodeTable(equip)
-    spawnShard(player, rootPart.Position, gold, xp, itemsJson, equipJson)
+    spawnShard(player, dropPosition, gold, xp, itemsJson, equipJson)
 end
 
 local function hookPlayer(player)
