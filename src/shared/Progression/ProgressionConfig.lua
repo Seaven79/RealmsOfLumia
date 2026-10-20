@@ -7,11 +7,11 @@ local ProgressionConfig = {}
 ProgressionConfig.MAX_LEVEL = 60
 
 ProgressionConfig.XP_REQUIREMENTS = {
-    [1] = 1000,
-    [2] = 1800,
-    [3] = 2900,
-    [4] = 4300,
-    [5] = 6000,
+    [1] = 1200,
+    [2] = 2000,
+    [3] = 3200,
+    [4] = 4800,
+    [5] = 6600,
 }
 
 -- Early quest XP targets for the upcoming quest service.
@@ -45,9 +45,9 @@ function ProgressionConfig.GetRequiredXP(level)
     local extraLevels = level - 5
 
     return math.floor(
-        6000
-        + extraLevels * 1500
-        + extraLevels * extraLevels * 200
+        6600
+        + extraLevels * 1800
+        + extraLevels * extraLevels * 250
     )
 end
 
