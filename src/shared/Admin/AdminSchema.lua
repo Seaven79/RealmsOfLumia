@@ -62,6 +62,12 @@ Schema.Sections = {
         Advanced = true,
         Description = "Per-monster health, damage and movement. Multiplied by the difficulty dials at spawn.",
     },
+    {
+        Id = "tools",
+        Label = "Tools",
+        Kind = "tools",
+        Description = "Owner-only maintenance. These change YOUR OWN character immediately and cannot be undone.",
+    },
 }
 
 function Schema.AddField(entry)

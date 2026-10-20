@@ -910,6 +910,76 @@ local function renderGlobal(section)
     }, scroller)
 end
 
+-- Armed until this clock time; a second click inside the window commits.
+local toolsArmedUntil = 0
+
+local function renderTools(section)
+    local order = 1
+
+    Kit.Header("CHARACTER", scroller, order)
+    order = order + 1
+
+    Kit.Create("TextLabel", {
+        Text = "Resets YOUR level to 1 and XP to 0. Gold, inventory, quests and achievements are untouched.",
+        Font = Kit.Font,
+        TextSize = 13,
+        TextColor3 = Palette.Dim,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 34),
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        LayoutOrder = order,
+    }, scroller)
+    order = order + 1
+
+    local resetButton
+    resetButton = Kit.Button({
+        Text = "Reset level and XP",
+        Size = UDim2.new(1, 0, 0, 40),
+        BackgroundColor3 = Color3.fromRGB(48, 30, 30),
+        TextColor3 = Palette.Bad,
+        StrokeColor = Palette.Bad,
+        TextSize = 15,
+        LayoutOrder = order,
+    }, scroller, function(button)
+        local now = os.clock()
+        if now > toolsArmedUntil then
+            -- First click only arms the action.
+            toolsArmedUntil = now + 5
+            button.Text = "Click again to confirm (5s)"
+            return
+        end
+
+        toolsArmedUntil = 0
+        button.Text = "Resetting…"
+        local response = invoke("ResetLevel")
+        if response and response.Ok then
+            local result = response.Result or {}
+            toast(string.format("Level reset: %s (%s xp) → 1 (0 xp)",
+                tostring(result.PreviousLevel), tostring(result.PreviousExperience)), "good")
+            renderSection(section)
+        elseif response then
+            toast(tostring(response.Reason or "Reset failed"), "bad")
+            button.Text = "Reset level and XP"
+        else
+            button.Text = "Reset level and XP"
+        end
+    end)
+
+    order = order + 1
+    Kit.Create("TextLabel", {
+        Text = "The first click arms the button; the second click within 5 seconds performs the reset.",
+        Font = Kit.Font,
+        TextSize = 12,
+        TextColor3 = Palette.Muted,
+        BackgroundTransparency = 1,
+        Size = UDim2.new(1, 0, 0, 20),
+        TextWrapped = true,
+        TextXAlignment = Enum.TextXAlignment.Left,
+        LayoutOrder = order,
+    }, scroller)
+end
+
 renderSection = function(section)
     clearScroller()
     sectionTitle.Text = string.upper(section.Label or section.Id)
@@ -918,6 +988,8 @@ renderSection = function(section)
     if not state then return end
     if section.Kind == "global" then
         renderGlobal(section)
+    elseif section.Kind == "tools" then
+        renderTools(section)
     elseif section.Kind == "mobstats" then
         renderMobStats(section)
     elseif section.Kind == "difficulty" then

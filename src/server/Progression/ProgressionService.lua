@@ -123,6 +123,34 @@ function ProgressionService:AddXP(player, amount)
     }
 end
 
+-- Owner-only maintenance. Returns the fresh progression snapshot so the caller
+-- can push it to the XP bar; persistence is handled by the normal profile save.
+function ProgressionService:ResetProgress(player)
+    local character = getCharacter(player)
+    if not character then
+        return false, "Player profile unavailable"
+    end
+
+    local previousLevel = tonumber(character.Level) or 1
+    local previousExperience = tonumber(character.Experience) or 0
+
+    character.Level = 1
+    character.Experience = 0
+
+    print(string.format(
+        "[Lumia - Progression Service] LEVEL RESET: %s | %d (%d xp) -> 1 (0 xp)",
+        player.Name, previousLevel, previousExperience))
+
+    return true, {
+        Level = 1,
+        Experience = 0,
+        RequiredXP = self:GetRequiredXP(1),
+        MaxLevel = self:GetMaxLevel(),
+        PreviousLevel = previousLevel,
+        PreviousExperience = previousExperience,
+    }
+end
+
 function ProgressionService:AddGold(player, amount)
     if not validAmount(amount) then
         return false, "Invalid gold amount"

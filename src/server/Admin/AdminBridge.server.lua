@@ -10,6 +10,7 @@ local Settings = require(script.Parent:WaitForChild("BalanceSettings"))
 local BalanceService = require(script.Parent:WaitForChild("BalanceService"))
 local MobTuning = require(script.Parent:WaitForChild("MobTuningService"))
 local CurveLab = require(script.Parent:WaitForChild("CurveLabService"))
+local ProgressionService = require(services:WaitForChild("Progression"):WaitForChild("ProgressionService"))
 
 local lumia = ReplicatedStorage:WaitForChild("Lumia")
 local Shared = lumia:WaitForChild("Shared")
@@ -284,6 +285,32 @@ handlers.Reset = function(player, payload)
         Failures = failures,
         State = buildState(player),
     }
+end
+
+-- Owner-only maintenance actions. These change the OWNER's own character and
+-- are audited like any other write.
+handlers.ResetLevel = function(player)
+    local ok, result = ProgressionService:ResetProgress(player)
+    if not ok then
+        return { Ok = false, Reason = tostring(result) }
+    end
+
+    -- Refresh the XP bar immediately; otherwise it keeps showing the old level.
+    local networkFolder = lumia:FindFirstChild("ProgressionNetwork")
+    local changed = networkFolder and networkFolder:FindFirstChild("ProgressionChanged")
+    if changed and changed:IsA("RemoteEvent") then
+        changed:FireClient(player, {
+            Ready = true,
+            Level = result.Level,
+            Experience = result.Experience,
+            RequiredXP = result.RequiredXP,
+            MaxLevel = result.MaxLevel,
+        })
+    end
+
+    log(string.format("%s  RESET LEVEL  %d (%d xp) -> 1 (0 xp)", player.Name,
+        result.PreviousLevel, result.PreviousExperience))
+    return { Ok = true, Result = result, State = buildState(player) }
 end
 
 handlers.MobStat = function(player, payload)

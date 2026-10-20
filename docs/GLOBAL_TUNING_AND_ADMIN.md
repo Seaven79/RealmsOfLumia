@@ -116,6 +116,22 @@ Studio. The panel shows an amber bar on overridden fields.
 bridge checks it **before anything else** and returns no data to anyone else.
 The client makes zero requests until the panel is opened.
 
+## Tools section (maintenance)
+
+`Reset level and XP` sets the **calling owner's** `Character.Level = 1` and
+`Experience = 0` and pushes a fresh snapshot to the XP bar. It does not touch
+gold, inventory, quests or achievements.
+
+Two safety properties, both deliberate:
+
+- The handler acts on `player` (the caller) only, never on a target argument, so
+  even a forged request cannot reset another player.
+- The button arms on the first click and commits on a second click within 5
+  seconds, so a stray click cannot wipe progress.
+
+Server path: `AdminBridge.handlers.ResetLevel` → `ProgressionService:ResetProgress`
+→ `ProgressionNetwork.ProgressionChanged`. It is audit-logged like any write.
+
 ## Known limits
 
 - Dials affect **newly spawned** monsters only.
