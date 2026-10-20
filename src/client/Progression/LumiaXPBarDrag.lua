@@ -34,6 +34,28 @@ function Drag.Attach(panel)
     local connections = {}
     local active = true
 
+    -- Screen-space origin of the panel's PARENT. AbsolutePosition is screen space
+    -- while Position is parent space, and the two differ by the topbar inset plus
+    -- any nesting. Assigning one straight into the other made every drag begin with
+    -- a jump of exactly that difference. Measuring a 1x1 probe beats assuming the
+    -- offset is zero - and when it genuinely is zero, this changes nothing.
+    local parentOffsetX, parentOffsetY = 0, 0
+    local function measureParentOffset()
+        local parent = panel.Parent
+        if not parent then return end
+        local probe = Instance.new("Frame")
+        probe.Name = "LumiaGuiProbe"
+        probe.Size = UDim2.fromOffset(1, 1)
+        probe.Position = UDim2.fromOffset(0, 0)
+        probe.BackgroundTransparency = 1
+        probe.BorderSizePixel = 0
+        probe.Parent = parent
+        local abs = probe.AbsolutePosition
+        parentOffsetX, parentOffsetY = abs.X, abs.Y
+        probe:Destroy()
+    end
+    measureParentOffset()
+
     local function clampPixels(x, y)
         local screen = viewportSize()
         if screen.X <= 0 or screen.Y <= 0 then return x, y end
@@ -43,7 +65,9 @@ function Drag.Attach(panel)
     local function moveTo(x, y)
         x, y = clampPixels(x, y)
         panel.AnchorPoint = Vector2.new(0, 0)
-        panel.Position = UDim2.fromOffset(math.round(x), math.round(y))
+        -- Screen space -> parent space, using the measured origin.
+        panel.Position = UDim2.fromOffset(
+            math.round(x - parentOffsetX), math.round(y - parentOffsetY))
     end
     local function applySaved(pos)
         if not valid(pos) or dragging then return end

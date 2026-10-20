@@ -18,6 +18,26 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
     local pointerStart,windowStart
     local changedInput=nil
     local revision=0
+    -- Screen-space origin of the window's parent. AbsolutePosition is screen space
+    -- while Position is parent space; they differ by the topbar inset plus nesting.
+    -- Measuring it stops every drag from starting with a jump equal to that gap,
+    -- and when the offset really is zero this changes nothing.
+    local parentOffsetX,parentOffsetY=0,0
+    local function measureParentOffset()
+        local parent=window.Parent
+        if not parent then return end
+        local probe=Instance.new("Frame")
+        probe.Name="LumiaGuiProbe"
+        probe.Size=UDim2.fromOffset(1,1)
+        probe.Position=UDim2.fromOffset(0,0)
+        probe.BackgroundTransparency=1
+        probe.BorderSizePixel=0
+        probe.Parent=parent
+        local abs=probe.AbsolutePosition
+        parentOffsetX,parentOffsetY=abs.X,abs.Y
+        probe:Destroy()
+    end
+    measureParentOffset()
     local function dimensions()
         return screenGui.AbsoluteSize
     end
@@ -29,7 +49,7 @@ function Hud.Attach(screenGui,window,dragHandle,kind)
     local function movePixels(x,y)
         x,y=clampPos(x,y)
         window.AnchorPoint=Vector2.new(0,0)
-        window.Position=UDim2.fromOffset(math.round(x),math.round(y))
+        window.Position=UDim2.fromOffset(math.round(x-parentOffsetX),math.round(y-parentOffsetY))
     end
     local function applyNormalized(data)
         if not valid(data) or dragging then return end
