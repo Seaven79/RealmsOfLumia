@@ -197,7 +197,6 @@ local function place()
         decor("Head",Vector3.new(1.2,1.2,1.2),Color3.fromRGB(221,170,125),Enum.Material.SmoothPlastic,npcBase*CFrame.new(0,4.4,0),merchant)
     end
     merchant:SetAttribute("LumiaMerchant",true)
-    merchant:SetAttribute("LumiaMerchantTitle","Mira the Trader")
     merchant:SetAttribute("LumiaNPCType","Merchant")
     CollectionService:AddTag(merchant,"LumiaMerchant")
     local head=merchant:FindFirstChild("Head") or merchant.PrimaryPart
@@ -220,7 +219,6 @@ task.spawn(place)
 -- Network bridge only. MerchantTradeService owns validated business logic and
 -- supports future merchants with different catalog modules/placement resolvers.
 local TradeService=require(script.Parent:WaitForChild("MerchantTradeService"))
-local OwnerUserId=require(script.Parent.Parent:WaitForChild("Admin"):WaitForChild("BalanceSettings")).OwnerUserId
 local trades=TradeService.new({Merchant=function() return merchant end,Config=cfg})
 local GearCatalog=require(shared:WaitForChild("Commerce"):WaitForChild("GearCatalog"))
 local activeTrade=setmetatable({}, {__mode="k"})
@@ -228,129 +226,49 @@ local regionalTrades=setmetatable({}, {__mode="k"})
 local function nearestTrade(player)
     local c=player.Character
     local root=c and c:FindFirstChild("HumanoidRootPart")
-    if not root then return nil, nil end
+    if not root then return nil end
     local nearest, distance = nil, 16
     if merchant and merchant.Parent then
         local d=(merchant:GetPivot().Position-root.Position).Magnitude
         if d <= distance then nearest=trades; distance=d end
     end
-    -- A gear merchant the player is standing at but is not high enough level for.
-    -- Reported separately so the shop can say WHY instead of "come closer".
-    local blockedLevel=nil
     local folder=Workspace:FindFirstChild("LumiaRegionMerchants")
     if folder then
         for _,npc in ipairs(folder:GetChildren()) do
             if npc:IsA("Model") and npc:GetAttribute("LumiaMerchant") then
                 local level=npc:GetAttribute("LumiaMerchantTier")
                 local profile=data:GetProfile(player)
-                local playerLevel=profile and profile.Character.Level or 1
-                local inRange=(npc:GetPivot().Position-root.Position).Magnitude<=distance
-                -- The owner can trade at any tier: this is a development build and
-                -- tuning gear tiers requires reaching a deliberately gated shop.
-                local allowed=(type(level)~="number") or (playerLevel>=level) or (player.UserId==OwnerUserId)
-                if inRange and not allowed then
-                    if not blockedLevel or level<blockedLevel then blockedLevel=level end
-                elseif inRange then
-                    if not regionalTrades[npc] then
-                        local names={[2]="Orin the Outfitter",[3]="Nessa of the Creek",
-                            [4]="Bram the Quartermaster",[5]="Serin the Armorer"}
-                        local merchantCfg={MerchantName=names[level] or "Regional Merchant",
-                            InteractionRange=16,MaxGold=2000000000}
-                        function merchantCfg.GetStock()
-                            local stock=GearCatalog.GetStock(level)
-                            table.insert(stock,{ItemId="FieldPotion", Price=12})
-                            return stock
+                if type(level)=="number" and profile and profile.Character.Level>=level then
+                    local d=(npc:GetPivot().Position-root.Position).Magnitude
+                    if d<=distance then
+                        if not regionalTrades[npc] then
+                            local names={[2]="Orin the Outfitter",[3]="Nessa of the Creek",
+                                [4]="Bram the Quartermaster",[5]="Serin the Armorer"}
+                            local merchantCfg={MerchantName=names[level] or "Regional Merchant",
+                                InteractionRange=16,MaxGold=2000000000}
+                            function merchantCfg.GetStock()
+                                local stock=GearCatalog.GetStock(level)
+                                table.insert(stock,{ItemId="FieldPotion", Price=12})
+                                return stock
+                            end
+                            regionalTrades[npc]=TradeService.new({Merchant=function() return npc end,Config=merchantCfg})
                         end
-                        regionalTrades[npc]=TradeService.new({Merchant=function() return npc end,Config=merchantCfg})
+                        nearest=regionalTrades[npc]
+                        distance=d
                     end
-                    nearest=regionalTrades[npc]
-                    distance=(npc:GetPivot().Position-root.Position).Magnitude
                 end
             end
         end
     end
-    return nearest, blockedLevel
+    return nearest
 end
-local function openFor(player)
-    local selected,blockedLevel=nearestTrade(player)
-    if not selected then
-        if blockedLevel then
-            local profile=data:GetProfile(player)
-            local playerLevel=profile and profile.Character.Level or 1
-            return {Ok=false,Message=string.format(
-                "This merchant sells level %d gear - you are level %d",
-                blockedLevel,playerLevel)}
-        end
-        -- Silent: the client always asks now, so "nothing nearby" must not pop a
-        -- message every time the player presses interact for another reason.
-        return {Ok=false,Silent=true,Message="Come closer to the merchant"}
-    end
+open.OnServerInvoke=function(player)
+    local selected=nearestTrade(player)
+    if not selected then return {Ok=false,Message="Come closer to the merchant"} end
     local response=selected:Open(player)
     if response and response.Ok then activeTrade[player]=selected end
     return response
 end
-open.OnServerInvoke=function(player) return openFor(player) end
-
--- Server-driven interaction. ClickDetector needs no cursor raycast, no
--- ContextActionService priority and no keybind, so a shop cannot silently fail
--- to open. No visible prompt is created: the player just clicks the merchant.
-local opened=net:FindFirstChild("MerchantOpened")
-if not opened then
-    opened=Instance.new("RemoteEvent")
-    opened.Name="MerchantOpened"
-    opened.Parent=net
-end
-
-local function attachClick(model)
-    if not model or not model:IsA("Model") then return end
-    if model:GetAttribute("LumiaTradeClickReady") then return end
-    local host=model.PrimaryPart or model:FindFirstChild("HumanoidRootPart")
-    if not host then return end
-    model:SetAttribute("LumiaTradeClickReady",true)
-
-    local detector=Instance.new("ClickDetector")
-    detector.Name="LumiaTradeClick"
-    detector.MaxActivationDistance=20
-    detector.Parent=host
-
-    detector.MouseClick:Connect(function(player)
-        local reply=openFor(player)
-        if not reply then return end
-        if reply.Ok then
-            opened:FireClient(player,reply)
-        elseif not reply.Silent then
-            opened:FireClient(player,{Ok=false,Message=reply.Message})
-        end
-        if Workspace:GetAttribute("LumiaMerchantDebug")==true then
-            print(string.format("[Lumia - Commerce] click from %s -> Ok=%s %s",
-                player.Name,tostring(reply.Ok),tostring(reply.Message or "")))
-        end
-    end)
-    if Workspace:GetAttribute("LumiaMerchantDebug")==true then
-        print("[Lumia - Commerce] click detector attached to "..model:GetFullName())
-    end
-end
-
--- Attach to Mira and to every regional merchant, including ones spawned later.
-task.spawn(function()
-    local seen=setmetatable({},{__mode="k"})
-    while true do
-        local scene=Workspace:FindFirstChild("LumiaMerchantScene")
-        local regional=Workspace:FindFirstChild("LumiaRegionMerchants")
-        for _,container in ipairs({scene,regional}) do
-            if container then
-                for _,model in ipairs(container:GetChildren()) do
-                    if model:IsA("Model") and model:GetAttribute("LumiaMerchant")
-                        and not seen[model] then
-                        seen[model]=true
-                        attachClick(model)
-                    end
-                end
-            end
-        end
-        task.wait(2)
-    end
-end)
 action.OnServerInvoke=function(player,verb,itemId,bagId,bagSlot,instanceId)
     local selected=activeTrade[player]
     if verb=="UsePotion" then return trades:Perform(player,verb,itemId,bagId,bagSlot,instanceId) end
