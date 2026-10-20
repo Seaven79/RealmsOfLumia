@@ -155,18 +155,18 @@ local function rarityColor(id)
 end
 local shopButtons={}
 -- Price chip: the coin glyph that matches the DENOMINATION, then the amount.
--- Currency is 1 Sun = 10,000, 1 Moon = 100, 1 Cinder = 1, so a price of 95 is
--- 95 Cinders and must show a Cinder coin, not a generic gold icon. Up to three
+-- Currency is 1 Platinum = 10,000, 1 Copper = 100, 1 Bronze = 1, so a price of 95
+-- is 95 Bronze and must show a Bronze coin, not a generic gold icon. Up to three
 -- denominations fit in the 60px cell; the row is centred.
 local CHIP_WIDTH=60
 local function priceChip(parent,amount)
     local row=node("Frame",{Name="PriceRow",BackgroundTransparency=1,
         Position=UDim2.fromOffset(1,58),Size=UDim2.fromOffset(CHIP_WIDTH,22)},parent)
-    local suns,moons,cinders=Currency.Split(amount)
+    local highDenom,midDenom,lowDenom=Currency.Split(amount)
     local groups={}
-    if suns>0 then groups[#groups+1]={"Sun",suns} end
-    if moons>0 then groups[#groups+1]={"Moon",moons} end
-    if cinders>0 or #groups==0 then groups[#groups+1]={"Cinder",cinders} end
+    if highDenom>0 then groups[#groups+1]={Currency.Tiers[1].Id,highDenom} end
+    if midDenom>0 then groups[#groups+1]={Currency.Tiers[2].Id,midDenom} end
+    if lowDenom>0 or #groups==0 then groups[#groups+1]={Currency.Tiers[3].Id,lowDenom} end
 
     local count=#groups
     -- Up to 3 denominations must share a 60px cell: shrink the glyph and type
