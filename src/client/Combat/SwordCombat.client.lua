@@ -62,7 +62,10 @@ local function jointsFor(character)
     return {
         Shoulder = findJoint(character, "RightShoulder")
             or findJoint(character, "Right Shoulder"),
-        Elbow = findJoint(character, "RightElbow"),
+        Elbow = findJoint(character, "RightElbow") or findJoint(character, "Right Elbow"),
+        LeftShoulder = findJoint(character, "LeftShoulder")
+            or findJoint(character, "Left Shoulder"),
+        LeftElbow = findJoint(character, "LeftElbow") or findJoint(character, "Left Elbow"),
         Waist = findJoint(character, "Waist"),
     }
 end
@@ -312,25 +315,78 @@ print("[Lumia - Sword Combat] Sword controls ready - equip MainHand, then click 
 local UserInputService = game:GetService("UserInputService")
 local fistCooldownUntil = 0
 local FIST_COOLDOWN = 0.6
-local FIST_SWING_TIME = 0.22
+local FIST_SWING_TIME = 0.28
+
+-- Fighting-game punch, Street Fighter style: the striking arm rises just past
+-- horizontal and crosses toward the centre line while the off arm stays up in
+-- a guard. Chamber -> strike -> recover.
+-- Composition note: the strike shoulder is built as Y * X, not CFrame.Angles(x, y, 0).
+-- A hanging arm points along -Y, so a Y rotation applied FIRST does nothing to
+-- it. Y has to wrap the already-extended arm to sweep the fist sideways.
+local CHAMBER_SHOULDER = CFrame.Angles(math.rad(-20), 0, 0)
+local STRIKE_SHOULDER = CFrame.Angles(0, math.rad(18), 0) * CFrame.Angles(math.rad(98), 0, 0)
+local CHAMBER_ELBOW = CFrame.Angles(math.rad(-68), 0, 0)
+local STRIKE_ELBOW = CFrame.Angles(math.rad(8), 0, 0)
+
+-- Off arm: raised and folded in front of the chest for the whole punch.
+local GUARD_SHOULDER = CFrame.Angles(math.rad(58), 0, 0)
+local GUARD_ELBOW = CFrame.Angles(math.rad(-88), 0, 0)
+
+local CHAMBER_WAIST = CFrame.Angles(0, math.rad(-14), 0)
+local STRIKE_WAIST = CFrame.Angles(0, math.rad(22), 0)
+
+local function punchPose(t)
+    local neutral = CFrame.new()
+
+    if t < 0.22 then
+        -- Chamber: fist back to the ribs, guard comes up, torso coils.
+        local a = eased(t / 0.22)
+        return {
+            Shoulder = neutral:Lerp(CHAMBER_SHOULDER, a),
+            Elbow = neutral:Lerp(CHAMBER_ELBOW, a),
+            LeftShoulder = neutral:Lerp(GUARD_SHOULDER, a),
+            LeftElbow = neutral:Lerp(GUARD_ELBOW, a),
+            Waist = neutral:Lerp(CHAMBER_WAIST, a),
+        }
+    elseif t < 0.50 then
+        -- Strike: arm extends forward, above the horizontal, across the body.
+        local a = eased((t - 0.22) / 0.28)
+        return {
+            Shoulder = CHAMBER_SHOULDER:Lerp(STRIKE_SHOULDER, a),
+            Elbow = CHAMBER_ELBOW:Lerp(STRIKE_ELBOW, a),
+            LeftShoulder = GUARD_SHOULDER,
+            LeftElbow = GUARD_ELBOW,
+            Waist = CHAMBER_WAIST:Lerp(STRIKE_WAIST, a),
+        }
+    end
+
+    -- Recovery: everything returns to neutral, slower than the strike.
+    local a = eased((t - 0.50) / 0.50)
+    return {
+        Shoulder = STRIKE_SHOULDER:Lerp(neutral, a),
+        Elbow = STRIKE_ELBOW:Lerp(neutral, a),
+        LeftShoulder = GUARD_SHOULDER:Lerp(neutral, a),
+        LeftElbow = GUARD_ELBOW:Lerp(neutral, a),
+        Waist = STRIKE_WAIST:Lerp(neutral, a),
+    }
+end
 
 local function playFistSwing(character)
     if not character or not character.Parent then return end
-    local shoulder = jointsFor(character).Shoulder
-    if not shoulder then return end
+    local joints = jointsFor(character)
+    if not joints.Shoulder then return end
     local startTime = os.clock()
     local conn
     conn = RunService.PreSimulation:Connect(function()
         local elapsed = os.clock() - startTime
-        if elapsed >= FIST_SWING_TIME or not shoulder.Parent then
+        if elapsed >= FIST_SWING_TIME or not joints.Shoulder.Parent then
             conn:Disconnect()
             return
         end
         local phase = math.clamp(elapsed / FIST_SWING_TIME, 0, 1)
-        local punch = math.sin(phase * math.pi)
-        local offset = CFrame.new(0, 0, -0.55 * punch)
-            * CFrame.Angles(math.rad(-78 * punch), 0, 0)
-        shoulder.Transform = shoulder.Transform * offset
+        for key, offset in pairs(punchPose(phase)) do
+            applyOffset(joints[key], offset)
+        end
     end)
 end
 
