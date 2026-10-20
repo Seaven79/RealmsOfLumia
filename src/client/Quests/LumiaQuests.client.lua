@@ -350,6 +350,9 @@ messages.OnClientEvent:Connect(function(msg,success)
     toast.Visible=true
     task.delay(3.2,function() if serial==toastSerial then toast.Visible=false end end)
 end)
+-- Declared BEFORE toggleWindow: referencing it further down made this a nil
+-- global, so the journal never registered as a modal.
+local LumiaModalState = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaModalState"))
 local function toggleWindow()
     if dialogueWindow.Visible then return end
     window.Visible=not window.Visible
@@ -359,7 +362,6 @@ end
 close.MouseButton1Click:Connect(function() window.Visible=false end)
 -- V18 micro menu opens the full quest journal, not the compact tracker.
 local MenuBus = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaMicroMenuBus"))
-local LumiaModalState = require(script.Parent.Parent:WaitForChild("UI"):WaitForChild("LumiaModalState"))
 MenuBus.Register("Quests", toggleWindow)
 UserInputService.InputBegan:Connect(function(input,processed)
     if not processed and input.KeyCode==Enum.KeyCode.J and not UserInputService:GetFocusedTextBox() then
@@ -542,8 +544,11 @@ local function setPointer(show,caption)
     if show and not pointer.Visible then
         mouseWasEnabled=UserInputService.MouseIconEnabled
         UserInputService.MouseIconEnabled=false
-    elseif not show and pointer.Visible and mouseWasEnabled~=nil then
-        UserInputService.MouseIconEnabled=mouseWasEnabled
+    elseif not show and pointer.Visible then
+        -- Always restore a visible cursor rather than replaying whatever value
+        -- was captured: the player may be about to click a shop item, and a
+        -- stale "hidden" restore would leave them with no cursor at all.
+        UserInputService.MouseIconEnabled=true
         mouseWasEnabled=nil
     end
     pointer.Visible=show
@@ -752,6 +757,10 @@ RunService.RenderStepped:Connect(function()
         updateClueGlow()
     end
     local target=(not castBusy) and targetLabel() or nil
+    -- The quest pointer replaces the native mouse cursor with its own glyph.
+    -- While any modal window is open the player needs a real cursor to click
+    -- items, so suppress the pointer even when an NPC is under the window.
+    if target~=nil and LumiaModalState:IsOpen() then target=nil end
     setPointer(target~=nil,target)
     local camera = workspace.CurrentCamera
     if camera then
