@@ -1078,13 +1078,7 @@ end)
 
 -- No startup probe: non-owners never trigger a request. The panel asks the
 -- server for state only when opened, and the server refuses non-owners.
-task.spawn(function()
-    while true do
-        task.wait(1)
-        if gui.Enabled and countdown > 0 then
-            countdown = countdown - 1
-            local section = Schema.GetSection(activeSection)
-            if section and section.Kind == "difficulty" then renderSection(section) end
-        end
-    end
-end)
+-- No idle ticker. The curve-trial countdown was its only consumer and that UI
+-- was replaced by the global dials, which persist instead of expiring. Every
+-- client therefore runs zero background loops for this panel.
+print("[Lumia - Admin Panel] ready • F7, Ctrl+Shift+A, or the ADMIN button")

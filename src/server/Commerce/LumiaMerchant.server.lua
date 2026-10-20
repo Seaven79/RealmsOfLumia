@@ -47,6 +47,20 @@ local function place()
         p.CanCollide=solid==true;p.CanTouch=false
         return p
     end
+    -- Anti-perch volumes. Solid furniture stops a player walking THROUGH it, but
+    -- a 2.9-stud counter can still be jumped onto. A collidable, invisible column
+    -- above each fixture makes the surface unusable without any per-frame script.
+    -- CanQuery=false keeps these out of every decor raycast; CanTouch=false means
+    -- no Touched connections can ever fire on them.
+    local function blocker(name,size,x,y,z)
+        local p=piece(name,size,Color3.new(0,0,0),Enum.Material.SmoothPlastic,x,y,z,false)
+        p.CanCollide=true
+        p.CanQuery=false
+        p.CastShadow=false
+        p.Transparency=1
+        p:SetAttribute("LumiaFurnitureBlocker",true)
+        return p
+    end
     local wood=Color3.fromRGB(104,67,39)
     local oak=Color3.fromRGB(162,111,61)
     local deep=Color3.fromRGB(54,38,32)
@@ -160,6 +174,17 @@ local function place()
     lamp("CounterWorkLamp2",4.8,3.95,3.6,.75,9)
     piece("CoinTray",Vector3.new(1.5,.17,.9),brass,Enum.Material.Metal,3.6,3.32,3.6,false)
     piece("ShopLedger",Vector3.new(1.4,.11,.9),Color3.fromRGB(75,54,45),Enum.Material.Fabric,-3.2,3.32,3.6,false)
+    -- Anti-perch columns over every walkable-height fixture.
+    blocker("BlockCounter",Vector3.new(12.7,6,3.0),0,6.3,3.6)
+    for _,side in ipairs({-1,1}) do
+        blocker("BlockSideShelf"..side,Vector3.new(2.7,8,4.4),side*7.35,5.5,-1.6)
+    end
+    for _,x in ipairs({-7.4,7.4}) do
+        for _,z in ipairs({5.8,7.2}) do
+            blocker("BlockStockCrate_"..tostring(x).."_"..tostring(z),Vector3.new(1.6,4,1.35),x,3.45,z)
+        end
+    end
+    blocker("BlockBackShelf",Vector3.new(13.5,8,1.1),0,5.55,7.85)
     -- Stationary NPC. Position from the ACTUAL floor surface, not the roof-inclusive bounding box.
     local npcBase=cf(0,0,6.15)
     local anchor=Workspace:FindFirstChild("LumiaMerchantAnchor",true)

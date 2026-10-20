@@ -333,6 +333,32 @@ local function updateTracker()
     tracker.Visible = true
 end
 
+-- The tracker loop only exists while a shard is actually on the ground, so a
+-- player with nothing to recover pays nothing per frame.
+local trackerConnection = nil
+
+local function stopTrackerLoop()
+    if trackerConnection then
+        trackerConnection:Disconnect()
+        trackerConnection = nil
+    end
+end
+
+local function startTrackerLoop()
+    if trackerConnection then return end
+    local elapsed = 0
+    trackerConnection = RunService.Heartbeat:Connect(function(dt)
+        elapsed += dt
+        if elapsed < 0.1 then return end
+        elapsed = 0
+        if not shardPosition then
+            stopTrackerLoop()
+            return
+        end
+        updateTracker()
+    end)
+end
+
 --------------------------------------------------------------------------------
 -- Events
 --------------------------------------------------------------------------------
@@ -367,6 +393,7 @@ droppedRemote.OnClientEvent:Connect(function(gold, xp, itemCount, position)
     )
 
     task.defer(updateTracker)
+    startTrackerLoop()
 end)
 
 recoveredRemote.OnClientEvent:Connect(function(gold, xp, itemCount)
@@ -389,14 +416,6 @@ recoveredRemote.OnClientEvent:Connect(function(gold, xp, itemCount)
         table.concat(parts, "  •  "),
         "Everything you carried has been returned."
     )
-end)
-
-local elapsed = 0
-RunService.Heartbeat:Connect(function(dt)
-    elapsed += dt
-    if elapsed < 0.1 then return end
-    elapsed = 0
-    updateTracker()
 end)
 
 updateTracker()
