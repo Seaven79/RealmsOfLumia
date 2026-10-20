@@ -142,6 +142,44 @@ function Persistence:Start()
     print("[Lumia - Player Persistence Service] Persistence service ready")
 end
 
+-- The Rusty Sword was never meant to be a starting item, but profiles created by
+-- older builds can still carry one. Strip it while loading so existing characters
+-- are cleaned up too, without anyone needing to wipe their DataStore. Idempotent:
+-- once the profile is clean this finds nothing and does nothing.
+local RUSTY_SWORD_ID = "RustySword"
+local function stripRustySword(profile)
+    local inventory = type(profile) == "table" and profile.Inventory or nil
+    if type(inventory) ~= "table" then return 0 end
+
+    local removedInstances, removed = {}, 0
+    if type(inventory.Items) == "table" then
+        local kept = {}
+        for _, record in ipairs(inventory.Items) do
+            if type(record) == "table" and record.ItemId == RUSTY_SWORD_ID then
+                removed += 1
+                if type(record.InstanceId) == "string" then
+                    removedInstances[record.InstanceId] = true
+                end
+            else
+                kept[#kept + 1] = record
+            end
+        end
+        inventory.Items = kept
+    end
+
+    -- Unequip anything that pointed at a removed instance, so the character cannot
+    -- end up wearing a weapon that no longer exists.
+    if type(inventory.Equipment) == "table" then
+        for slot, instanceId in pairs(inventory.Equipment) do
+            if type(instanceId) == "string" and removedInstances[instanceId] then
+                inventory.Equipment[slot] = nil
+            end
+        end
+    end
+
+    return removed
+end
+
 function Persistence:Load(userId)
     if shuttingDown then
         return nil, "Server shutting down"
@@ -215,6 +253,13 @@ function Persistence:Load(userId)
 
     if not valid then
         return nil, "Invalid loaded profile: " .. tostring(reason)
+    end
+
+    local stripped = stripRustySword(result.Profile)
+    if stripped > 0 then
+        print(string.format(
+            "[Lumia - Player Persistence Service] Stripped %d Rusty Sword(s) from profile %d",
+            stripped, userId))
     end
 
     local state = {
