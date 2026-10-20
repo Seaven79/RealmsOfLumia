@@ -60,11 +60,12 @@ local function label(parent,name,text,pos,size,font,textSize,color)
     },parent)
 end
 
--- Compact quest tracker under the minimap: ONLY title and objective.
--- The full story and rewards are available in the J journal.
+-- Compact quest tracker under the minimap: title, objective and a progress bar so
+-- you can read how far along you are at a glance. The full story and rewards live
+-- in the J journal.
 local tracker = round(ui("Frame",{
     Name="CompactQuestTracker",AnchorPoint=Vector2.new(1,0),
-    Position=UDim2.new(1,-11,0,213),Size=UDim2.fromOffset(202,67),
+    Position=UDim2.new(1,-11,0,213),Size=UDim2.fromOffset(202,80),
     BackgroundColor3=DARK,BackgroundTransparency=0.12,BorderSizePixel=0,
     Visible=false,
 },gui),7)
@@ -73,8 +74,28 @@ local trackerTitle=label(tracker,"QuestTitle","",UDim2.fromOffset(9,5),
     UDim2.new(1,-18,0,25),Enum.Font.GothamSemibold,16,GOLDLIGHT)
 trackerTitle.TextTruncate=Enum.TextTruncate.AtEnd
 local trackerObjective=label(tracker,"QuestObjective","",UDim2.fromOffset(9,33),
-    UDim2.new(1,-18,0,26),Enum.Font.Gotham,12,TEXT)
+    UDim2.new(1,-18,0,20),Enum.Font.Gotham,12,TEXT)
 trackerObjective.TextTruncate=Enum.TextTruncate.AtEnd
+local trackerTrack=round(ui("Frame",{
+    Name="TrackerProgressTrack",Position=UDim2.fromOffset(9,58),
+    Size=UDim2.new(1,-18,0,8),BackgroundColor3=Color3.fromRGB(28,31,39),
+    BorderSizePixel=0,ZIndex=40,
+},tracker),4)
+local trackerFill=round(ui("Frame",{
+    Name="TrackerProgressFill",Size=UDim2.fromScale(0,1),
+    BackgroundColor3=Color3.fromRGB(126,190,128),BorderSizePixel=0,ZIndex=41,
+},trackerTrack),4)
+local function setTrackerProgress(progress,count,ready)
+    local fraction=0
+    if ready then
+        fraction=1
+    elseif type(count)=="number" and count>0 and type(progress)=="number" then
+        fraction=math.clamp(progress/count,0,1)
+    end
+    trackerFill.Size=UDim2.fromScale(fraction,1)
+    trackerFill.BackgroundColor3=ready
+        and Color3.fromRGB(226,191,122) or Color3.fromRGB(126,190,128)
+end
 
 local toast = round(ui("TextLabel",{
     Name="QuestMessage",AnchorPoint=Vector2.new(0.5,0),
@@ -322,6 +343,7 @@ local function render(data)
         (q.Kind=="Collect" and "Runestone fragments collected" or (q.Kind=="Ritual" and "Runes activated" or "Clues investigated")))
     trackerObjective.Text=string.format("%s: %d/%d",objectiveName,q.Progress,q.Count)
     if q.ReadyToTurnIn then trackerObjective.Text="Objective complete — turn in" end
+    setTrackerProgress(q.Progress,q.Count,q.ReadyToTurnIn==true)
     abandonButton.Visible=q.Active==true
     if not q.Active then abandonDeadline=0;abandonButton.Text="ABANDON QUEST" end
     if not q.Active then
@@ -396,15 +418,22 @@ abandonButton.Activated:Connect(function()
     abandonButton.Text="ABANDON QUEST"
     task.spawn(function() requestAction("Abandon") end)
 end)
+-- Immersive-style card used for NPC offers and turn-ins. The journal above stays
+-- the place for details and abandoning; this is only the conversation.
+local QuestDialog = require(script.Parent:WaitForChild("LumiaQuestDialog"))
+
 local function openDialogue(data)
     if type(data)~="table" or not data.Ready then return end
     render(data)
     window.Visible=false
-    dialogueWindow.Visible=true
+    dialogueWindow.Visible=false
     dialogBusy=false
     local q=data.Quest
     task.spawn(function() refreshPortrait(q and q.Giver or "ElderRowan") end)
     if not q then
+        -- Nothing on offer: fall back to the classic window rather than showing an
+        -- empty quest card.
+        dialogueWindow.Visible=true
         dialogQuest.Text="The First Paths"
         dialogStory.Text="You have completed the available adventures, traveler."
         dialogObjective.Text="All quests completed."
@@ -450,6 +479,26 @@ local function openDialogue(data)
         decline.Text="CLOSE"
         dialogNotice.Text="Your quest remains active. Return when finished."
     end
+
+    -- Present the same information as a compact conversation card.
+    QuestDialog.Show{
+        Title=q.Name,
+        Speaker=npcHeader.Text,
+        Level=q.MinLevel or 1,
+        Description=dialogStory.Text,
+        Objective=objectiveName,
+        Progress=q.Progress or 0,
+        Count=q.Count or 0,
+        Rewards={string.format("%d XP",q.XP or 0),Currency.FormatShort(q.Gold or 0)},
+        Mode=(q.ReadyToTurnIn and "TurnIn") or (q.Active and "Progress") or "Offer",
+        PrimaryText=primary.Text,
+        SecondaryText=decline.Text,
+        HidePrimary=(dialogVerb==nil),
+        OnPrimary=function()
+            if dialogVerb then task.spawn(function() requestAction(dialogVerb) end) end
+        end,
+        OnSecondary=function() end,
+    }
 end
 dialogueRemote.OnClientEvent:Connect(openDialogue)
 primary.Activated:Connect(function()
