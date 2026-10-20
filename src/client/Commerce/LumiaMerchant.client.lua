@@ -259,14 +259,17 @@ local function npcAtMouse()
     return model and model:GetAttribute("LumiaMerchant") and model or nil
 end
 local function openMerchant()
-    if not npcAtMouse() or busy then return end
+    if busy then return end
     busy=true
+    local underCursor=npcAtMouse()~=nil
     -- Wrapped so a render bug surfaces as a visible message plus an Output line
     -- instead of dying silently and leaving the player with no window.
     local ok,err=pcall(function()
         local reply=openRemote:InvokeServer()
         if not reply or not reply.Ok then
-            notify(reply and reply.Message or "Merchant unavailable")
+            if not (reply and reply.Silent) then
+                notify(reply and reply.Message or "Merchant unavailable")
+            end
             return
         end
         layoutShop()
@@ -288,6 +291,8 @@ local function openMerchant()
         LumiaModalState:Unregister("MerchantWindow")
         warn("[Lumia - Commerce] Merchant window failed to open: "..tostring(err))
         notify("Merchant window failed to open")
+    elseif not underCursor and workspace:GetAttribute("LumiaMerchantDebug")==true then
+        print("[Lumia - Commerce] Opened without a merchant under the cursor (server resolved the nearest one)")
     end
 end
 local bindId="Lumia_MerchantInteract"
@@ -297,12 +302,22 @@ local function rebind()
     local input=name=="MouseButton2" and Enum.UserInputType.MouseButton2 or Enum.KeyCode[name]
     if not input then input=Enum.UserInputType.MouseButton2 end
     CAS:BindActionAtPriority(bindId,function(_,state)
-        if state~=Enum.UserInputState.Begin or not npcAtMouse() then
+        if state~=Enum.UserInputState.Begin then
             return Enum.ContextActionResult.Pass
         end
-        if not frame.Visible and not UIS:GetFocusedTextBox() then task.spawn(openMerchant) end
-        return Enum.ContextActionResult.Sink
+        -- Deliberately NOT gated on "is a merchant under the cursor": mouse.Target
+        -- depends on the part being queryable and unobstructed, and a miss made
+        -- the shop silently refuse to open. The server already resolves the
+        -- nearest merchant within range and answers with a clear reason.
+        if not frame.Visible and not UIS:GetFocusedTextBox() then
+            task.spawn(openMerchant)
+            return Enum.ContextActionResult.Sink
+        end
+        return Enum.ContextActionResult.Pass
     end,false,3200,input)
+    if workspace:GetAttribute("LumiaMerchantDebug")==true then
+        print("[Lumia - Commerce] interact bound to "..tostring(name))
+    end
 end
 player:GetAttributeChangedSignal("LumiaInteractKey"):Connect(rebind)
 rebind()

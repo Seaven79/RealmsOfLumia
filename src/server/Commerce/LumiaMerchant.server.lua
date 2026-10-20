@@ -280,7 +280,9 @@ open.OnServerInvoke=function(player)
                 "This merchant sells level %d gear - you are level %d",
                 blockedLevel,playerLevel)}
         end
-        return {Ok=false,Message="Come closer to the merchant"}
+        -- Silent: the client always asks now, so "nothing nearby" must not pop a
+        -- message every time the player presses interact for another reason.
+        return {Ok=false,Silent=true,Message="Come closer to the merchant"}
     end
     local response=selected:Open(player)
     if response and response.Ok then activeTrade[player]=selected end
