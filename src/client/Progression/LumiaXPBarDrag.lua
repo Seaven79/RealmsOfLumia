@@ -59,9 +59,19 @@ function Drag.Attach(panel)
         panel.Position = UDim2.fromScale(
             math.clamp(nx, 0, maxX), math.clamp(ny, 0, maxY))
     end
+    -- Canonical placement: the player's INTENT, unclamped. The clamped value is
+    -- only what gets displayed. Deriving the canonical value from the displayed
+    -- position would let a temporary small window overwrite a fullscreen layout
+    -- permanently, which is exactly the bug this guards against.
+    local savedX, savedY = nil, nil
+    local function displayPlacement()
+        if savedX == nil then return end
+        moveToScale(savedX, savedY)
+    end
     local function applySaved(pos)
         if not valid(pos) or dragging then return end
-        moveToScale(pos.X, pos.Y)
+        savedX, savedY = pos.X, pos.Y
+        displayPlacement()
     end
 
     -- Wait for profile readiness and ignore a late server response if a local
@@ -80,12 +90,11 @@ function Drag.Attach(panel)
         warn("[Lumia V16] XP bar position was not loaded; using default")
     end)
 
-    local function persist()
+    local function persist(nx, ny)
         local screen = viewportSize()
         if screen.X < 1 or screen.Y < 1 then return end
-        local pos = panel.AbsolutePosition
-        local x = math.clamp(pos.X / screen.X, 0, 1)
-        local y = math.clamp(pos.Y / screen.Y, 0, 1)
+        local x = math.clamp(nx, 0, 1)
+        local y = math.clamp(ny, 0, 1)
         task.spawn(function()
             for attempt = 1, 4 do
                 if not active then return end
@@ -125,25 +134,31 @@ function Drag.Attach(panel)
         if dragging and input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
             if hadMoved then
-                -- Settle onto scale coordinates so the drop point survives a resize.
+                -- Record intent from where it was dropped, then display it clamped.
                 local screen = viewportSize()
                 if screen.X >= 1 and screen.Y >= 1 then
                     local pos = panel.AbsolutePosition
-                    moveToScale(pos.X / screen.X, pos.Y / screen.Y)
+                    savedX = math.clamp(pos.X / screen.X, 0, 1)
+                    savedY = math.clamp(pos.Y / screen.Y, 0, 1)
+                    displayPlacement()
+                    persist(savedX, savedY)
                 end
-                persist()
             end
         end
     end)
-    -- Re-clamp when the window changes size, e.g. entering or leaving fullscreen.
+    -- A resize only changes what is DISPLAYED. The canonical placement is never
+    -- recomputed from the clamped position, so a small window cannot erase it.
     local camera = workspace.CurrentCamera
     if camera then
         connections[#connections + 1] = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
             if dragging then return end
             local screen = viewportSize()
             if screen.X < 1 or screen.Y < 1 then return end
-            local pos = panel.AbsolutePosition
-            moveToScale(pos.X / screen.X, pos.Y / screen.Y)
+            if savedX == nil then
+                local pos = panel.AbsolutePosition
+                savedX, savedY = pos.X / screen.X, pos.Y / screen.Y
+            end
+            displayPlacement()
         end)
     end
     panel.Destroying:Connect(function()
