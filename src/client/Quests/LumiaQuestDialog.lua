@@ -236,7 +236,7 @@ local function build()
         BorderSizePixel = 0,
         Font = Enum.Font.GothamBold,
         TextSize = 14,
-        TextColor = GOLD,
+        TextColor3 = GOLD,
         Text = "ACCEPT",
         AutoButtonColor = true,
         ZIndex = 93,
@@ -250,7 +250,7 @@ local function build()
         BorderSizePixel = 0,
         Font = Enum.Font.GothamBold,
         TextSize = 14,
-        TextColor = MUTED,
+        TextColor3 = MUTED,
         Text = "DECLINE",
         AutoButtonColor = true,
         ZIndex = 93,
@@ -279,6 +279,12 @@ end
 function QuestDialog.Show(options)
     options = options or {}
     build()
+    -- If construction failed, degrade quietly instead of raising on every label
+    -- assignment; the journal still shows the quest.
+    if not (titleLabel and speakerLabel and objectiveLabel and primary and secondary) then
+        warn("[Lumia - Quest Dialog] UI failed to build; dialog skipped")
+        return
+    end
 
     titleLabel.Text = tostring(options.Title or "Quest")
     speakerLabel.Text = string.upper(tostring(options.Speaker or "QUEST GIVER"))
