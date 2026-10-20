@@ -231,6 +231,10 @@ function MonsterAI.Run(model, definition, home)
                         nextAttack = now + definition.AttackCooldown
                         model:SetAttribute("LumiaAttackSerial", (model:GetAttribute("LumiaAttackSerial") or 0) + 1)
                         local rawDamage = definition.Damage
+                        -- Encounter scaling: set by the boss script so a solo fight
+                        -- does not hit as hard as a full group.
+                        local damageScale = tonumber(model:GetAttribute("LumiaDamageScale")) or 1
+                        if damageScale ~= 1 then rawDamage *= damageScale end
                         if model:GetAttribute("LumiaBossEnraged") == true then rawDamage *= 1.25 end
                         targetHumanoid:TakeDamage(CombatStats.IncomingDamage(target, rawDamage))
                         print("[Lumia - Monster AI] " .. model.Name .. " attacked " .. target.Name)

@@ -1,111 +1,308 @@
--- Realms of Lumia V17: final boss requires TWO level-five adventurers.
--- Only server-confirmed sword hits and living, nearby participants grant completion.
+-- Realms of Lumia V18 | The Thornbound Guardian
+--
+-- Always available: the boss forms whenever at least one adventurer enters the
+-- arena, so a solo player can fight it. Difficulty scales with the number of
+-- players present when it forms, and the fight has three phases with a rule the
+-- player can learn and beat:
+--
+--   Phase 1 (100-65%)  Telegraphed ground slam. The red ring marks where it will
+--                      land; step out of it and you take nothing.
+--   Phase 2 (65-30%)   Slams land faster and the Guardian calls Whelps. Clear the
+--                      adds or they grind you down while you dodge.
+--   Phase 3 (below 30%) Enraged: bigger ring, shorter fuse, no more adds. Damage
+--                      is up, so this is a race to finish before you run dry.
+--
+-- A player who lands at least one hit is credited, solo included. If everyone
+-- leaves or dies the Guardian dissolves and re-forms on the next attempt.
 local Players=game:GetService("Players")
 local Workspace=game:GetService("Workspace")
 local services=script.Parent.Parent
-local Data=require(services:WaitForChild("Players"):WaitForChild("PlayerDataService"))
 local Quests=require(services:WaitForChild("Quests"):WaitForChild("QuestService"))
 local Achievements=require(services:WaitForChild("Progression"):WaitForChild("AchievementService"))
+local CombatStats=require(services:WaitForChild("Combat"):WaitForChild("CombatStats"))
 local Monsters=require(script.Parent:WaitForChild("MonsterService"))
 local Life=require(script.Parent:WaitForChild("MonsterLifecycleEvents"))
+
 local map=Workspace:WaitForChild("LumiaOpenWorldV15",45)
 local anchor=map and map:FindFirstChild("GuardianEncounterAnchor")
 if not anchor or not anchor:IsA("BasePart") then
-    warn("[Lumia V17] Guardian encounter skipped: boss anchor missing")
+    warn("[Lumia V18] Guardian encounter skipped: boss anchor missing")
     return
 end
+
+local ARENA_RADIUS=46
+local ENGAGE_RADIUS=64
+local REFORM_DELAY=30
+local DESERT_GRACE=20
+
+-- Ring radius is in studs; slamDamage is pre-armor, mitigation is applied through
+-- CombatStats so gear still matters.
+local PHASES={
+    {
+        id=1, untilFraction=0.65,
+        slamInterval=6.5, telegraph=1.45, radius=12, slamDamage=22,
+        addInterval=nil, maxAdds=0,
+    },
+    {
+        id=2, untilFraction=0.30,
+        slamInterval=5.0, telegraph=1.15, radius=13, slamDamage=26,
+        addInterval=18, maxAdds=4,
+    },
+    {
+        id=3, untilFraction=0,
+        slamInterval=3.8, telegraph=0.95, radius=16, slamDamage=32,
+        addInterval=nil, maxAdds=0,
+    },
+}
+
+-- Solo gets a smaller health pool and softer hits; a group gets the full fight.
+local function scalingFor(count)
+    if count<=1 then return { health=0.55, damage=0.80 } end
+    if count==2 then return { health=1.00, damage=1.00 } end
+    return { health=1.25, damage=1.10 }
+end
+
 local active=nil
+local fight=nil
 local nextSpawn=0
 local desertedSince=nil
-local function eligible(player)
-    local profile=Data:GetProfile(player)
-    if not profile or profile.Character.Level<5 then return false end
-    local done=profile.Progression.CompletedQuests or {}
-    local activeQuests=profile.Progression.ActiveQuests or {}
-    if not done.fp15 or done.fp16 or not activeQuests.fp16 then return false end
-    local c=player.Character
-    local h=c and c:FindFirstChildOfClass("Humanoid")
-    local r=c and c:FindFirstChild("HumanoidRootPart")
-    return r~=nil and h~=nil and h.Health>0
-        and (r.Position-anchor.Position).Magnitude<=46
+
+local function rootOf(player)
+    local character=player.Character
+    if not character then return nil end
+    local humanoid=character:FindFirstChildOfClass("Humanoid")
+    local root=character:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not root or humanoid.Health<=0 then return nil end
+    return root,humanoid
 end
-local function group()
+
+local function distanceToAnchor(player)
+    local root=rootOf(player)
+    if not root then return nil end
+    return (root.Position-anchor.Position).Magnitude
+end
+
+local function nearbyPlayers()
     local found={}
     for _,player in ipairs(Players:GetPlayers()) do
-        if eligible(player) then table.insert(found,player) end
+        local distance=distanceToAnchor(player)
+        if distance and distance<=ENGAGE_RADIUS then
+            found[#found+1]=player
+        end
     end
     return found
 end
-Life.Died.Event:Connect(function(model,monsterId)
-    if monsterId~="ThornboundGuardian" or model~=active or
-        model:GetAttribute("LumiaBossEncounter")~=true then return end
-    local adventurers=group()
-    local valid={}
-    for _,p in ipairs(adventurers) do
-        if (model:GetAttribute("LumiaBossHit_"..p.UserId) or 0)>=1 then
-            valid[#valid+1]=p
+
+local function setPhaseGlow(boss,phaseId)
+    local highlight=boss:FindFirstChildOfClass("Highlight")
+    if not highlight then return end
+    if phaseId>=3 then
+        highlight.FillColor=Color3.fromRGB(210,81,91)
+        highlight.OutlineColor=Color3.fromRGB(255,185,117)
+    elseif phaseId==2 then
+        highlight.FillColor=Color3.fromRGB(155,86,120)
+        highlight.OutlineColor=Color3.fromRGB(244,178,116)
+    end
+end
+
+local function clearFight()
+    if not fight then return end
+    for _,part in ipairs(fight.telegraphs) do
+        if part.Parent then part:Destroy() end
+    end
+    for _,add in ipairs(fight.adds) do
+        if add.Parent then add:Destroy() end
+    end
+    fight=nil
+end
+
+-- A ring that marks where the slam will land, then resolves once.
+local function startSlam(boss,phase)
+    local crowd=nearbyPlayers()
+    if #crowd==0 then return end
+    local target=crowd[math.random(#crowd)]
+    local root=rootOf(target)
+    if not root then return end
+    local center=Vector3.new(root.Position.X,anchor.Position.Y+0.15,root.Position.Z)
+
+    local ring=Instance.new("Part")
+    ring.Name="LumiaBossTelegraph"
+    ring.Shape=Enum.PartType.Cylinder
+    ring.Anchored=true
+    ring.CanCollide=false
+    ring.CanQuery=false
+    ring.CanTouch=false
+    ring.Material=Enum.Material.Neon
+    ring.Color=Color3.fromRGB(196,63,74)
+    ring.Transparency=0.62
+    ring.Size=Vector3.new(0.4,phase.radius*2,phase.radius*2)
+    ring.CFrame=CFrame.new(center)*CFrame.Angles(0,0,math.rad(90))
+    ring.Parent=Workspace
+    if fight then fight.telegraphs[#fight.telegraphs+1]=ring end
+
+    local damageScale=tonumber(boss:GetAttribute("LumiaDamageScale")) or 1
+    task.delay(phase.telegraph,function()
+        if not ring.Parent then return end
+        ring.Transparency=0.15
+        ring.Color=Color3.fromRGB(255,124,84)
+        for _,player in ipairs(nearbyPlayers()) do
+            local playerRoot,humanoid=rootOf(player)
+            if playerRoot and humanoid then
+                local flat=Vector3.new(playerRoot.Position.X,center.Y,playerRoot.Position.Z)
+                if (flat-center).Magnitude<=phase.radius then
+                    humanoid:TakeDamage(CombatStats.IncomingDamage(
+                        player,phase.slamDamage*damageScale))
+                end
+            end
+        end
+        task.delay(0.3,function()
+            if ring.Parent then ring:Destroy() end
+        end)
+    end)
+end
+
+local function spawnWhelps(boss)
+    if not fight then return end
+    local alive=0
+    for _,add in ipairs(fight.adds) do
+        local humanoid=add.Parent and add:FindFirstChildOfClass("Humanoid")
+        if humanoid and humanoid.Health>0 then alive+=1 end
+    end
+    local phase=PHASES[2]
+    for _=1,math.min(2,math.max(0,phase.maxAdds-alive)) do
+        local offset=Vector3.new(math.random(-12,12),0,math.random(-12,12))
+        local whelp=Monsters:SpawnMonster("ThornboundWhelp",
+            boss:GetPivot().Position+offset,false)
+        if whelp then
+            whelp:SetAttribute("LumiaBossAdd",true)
+            fight.adds[#fight.adds+1]=whelp
         end
     end
-    if #valid==2 then
-        for _,player in ipairs(valid) do
+end
+
+local function phaseFor(fraction)
+    for _,phase in ipairs(PHASES) do
+        if fraction>phase.untilFraction then return phase end
+    end
+    return PHASES[#PHASES]
+end
+
+local function runFight(boss)
+    local humanoid=boss:FindFirstChildOfClass("Humanoid")
+    if not humanoid then return end
+    local state={ nextSlam=os.clock()+2.5, nextAdds=os.clock()+8, phaseId=0 }
+    while active==boss and boss.Parent and humanoid.Health>0 do
+        local fraction=humanoid.Health/math.max(1,humanoid.MaxHealth)
+        local phase=phaseFor(fraction)
+        if phase.id~=state.phaseId then
+            state.phaseId=phase.id
+            state.nextSlam=os.clock()+1.5
+            setPhaseGlow(boss,phase.id)
+            if phase.id>=3 then
+                boss:SetAttribute("LumiaBossEnraged",true)
+                humanoid.DisplayName="Thornbound Guardian [Enraged]"
+                print("[Lumia V18] Guardian enraged - final phase")
+            elseif phase.id==2 then
+                print("[Lumia V18] Guardian phase 2 - whelps incoming")
+            else
+                print("[Lumia V18] Guardian phase 1 - dodge the rings")
+            end
+        end
+        if phase.addInterval and os.clock()>=state.nextAdds then
+            state.nextAdds=os.clock()+phase.addInterval
+            spawnWhelps(boss)
+        end
+        if os.clock()>=state.nextSlam then
+            state.nextSlam=os.clock()+phase.slamInterval
+            startSlam(boss,phase)
+        end
+        task.wait(0.2)
+    end
+end
+
+local function spawnBoss()
+    local crowd=nearbyPlayers()
+    local count=math.max(1,#crowd)
+    local scaling=scalingFor(count)
+    local boss=Monsters:SpawnMonster("ThornboundGuardian",anchor.Position,true)
+    if not boss then
+        nextSpawn=os.clock()+8
+        return nil
+    end
+    boss:SetAttribute("LumiaBossEncounter",true)
+    boss:SetAttribute("LumiaDamageScale",scaling.damage)
+    pcall(function() boss:ScaleTo(1.45) end)
+
+    local humanoid=boss:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        local maxHealth=math.max(1,math.floor(humanoid.MaxHealth*scaling.health))
+        humanoid.MaxHealth=maxHealth
+        humanoid.Health=maxHealth
+        humanoid.DisplayName="Thornbound Guardian"
+    end
+
+    local glow=Instance.new("Highlight")
+    glow.FillColor=Color3.fromRGB(121,69,140)
+    glow.OutlineColor=Color3.fromRGB(238,170,108)
+    glow.FillTransparency=0.65
+    glow.OutlineTransparency=0.12
+    glow.Parent=boss
+
+    active=boss
+    fight={ telegraphs={}, adds={} }
+    desertedSince=nil
+    print(string.format("[Lumia V18] Thornbound Guardian formed for %d player(s) | health x%.2f damage x%.2f",
+        count,scaling.health,scaling.damage))
+    task.spawn(runFight,boss)
+    return boss
+end
+
+Life.Died.Event:Connect(function(model,monsterId)
+    if monsterId~="ThornboundGuardian" or model~=active then return end
+    if model:GetAttribute("LumiaBossEncounter")~=true then return end
+    local credited=0
+    for _,player in ipairs(Players:GetPlayers()) do
+        if (model:GetAttribute("LumiaBossHit_"..player.UserId) or 0)>=1 then
             Quests:Advance(player,"Kill","ThornboundGuardian")
             Achievements:Award(player,"GuardiansOfLumia")
+            credited+=1
         end
-        print("[Lumia V17] Guardian defeated by two verified players")
-    else
-        warn("[Lumia V17] Guardian died without two eligible contributors; no quest or achievement rewards")
     end
-    local factor=tonumber(model:GetAttribute("LumiaRespawnFactor")) or 1
+    if credited>0 then
+        print(string.format("[Lumia V18] Guardian defeated by %d player(s)",credited))
+    else
+        warn("[Lumia V18] Guardian died with no contributor; no rewards granted")
+    end
+    clearFight()
     active=nil
-    nextSpawn=os.clock()+math.clamp(45*factor,2,3600)
+    nextSpawn=os.clock()+REFORM_DELAY
 end)
+
 task.spawn(function()
     while anchor.Parent do
-        local adventurers=group()
+        local crowd=nearbyPlayers()
         if active and not active.Parent then
-            local factor=tonumber(active:GetAttribute("LumiaRespawnFactor")) or 1
+            clearFight()
             active=nil
-            nextSpawn=os.clock()+math.clamp(40*factor,2,3600)
+            nextSpawn=os.clock()+REFORM_DELAY
         end
         if active then
-            if #adventurers==0 and not desertedSince then desertedSince=os.clock() end
-            if #adventurers>0 then desertedSince=nil end
-            if desertedSince and os.clock()-desertedSince>45 then
-                local abandoned=active
-                active=nil
-                local factor=tonumber(abandoned:GetAttribute("LumiaRespawnFactor")) or 1
-                abandoned:Destroy()
-                nextSpawn=os.clock()+math.clamp(12*factor,2,3600)
+            if #crowd==0 then
+                desertedSince=desertedSince or os.clock()
+                if os.clock()-desertedSince>DESERT_GRACE then
+                    local abandoned=active
+                    clearFight()
+                    active=nil
+                    if abandoned.Parent then abandoned:Destroy() end
+                    nextSpawn=os.clock()+12
+                    desertedSince=nil
+                    print("[Lumia V18] Guardian dissolved - nobody in the arena")
+                end
+            else
                 desertedSince=nil
             end
-        elseif os.clock()>=nextSpawn and #adventurers==2 then
-            local boss=Monsters:SpawnMonster("ThornboundGuardian",anchor.Position,true)
-            if boss then
-                boss:SetAttribute("LumiaBossEncounter",true)
-                pcall(function()boss:ScaleTo(1.45)end)
-                local glow=Instance.new("Highlight")
-                glow.FillColor=Color3.fromRGB(121,69,140)
-                glow.OutlineColor=Color3.fromRGB(238,170,108)
-                glow.FillTransparency=.65
-                glow.OutlineTransparency=.12
-                glow.Parent=boss
-                local humanoid=boss:FindFirstChildOfClass("Humanoid")
-                if humanoid then
-                    humanoid.HealthChanged:Connect(function(health)
-                        if health>0 and health<=humanoid.MaxHealth*.5
-                            and boss:GetAttribute("LumiaBossEnraged")~=true then
-                            boss:SetAttribute("LumiaBossEnraged",true)
-                            glow.FillColor=Color3.fromRGB(210,81,91)
-                            glow.OutlineColor=Color3.fromRGB(255,185,117)
-                            humanoid.DisplayName="Thornbound Guardian [Enraged]"
-                        end
-                    end)
-                end
-                active=boss
-                print("[Lumia V17] Thornbound Guardian has appeared for two players")
-            else
-                nextSpawn=os.clock()+8
-            end
+        elseif os.clock()>=nextSpawn and #crowd>=1 then
+            spawnBoss()
         end
         task.wait(1.5)
     end

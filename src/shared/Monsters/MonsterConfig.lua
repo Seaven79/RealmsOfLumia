@@ -10,7 +10,15 @@ MonsterConfig.Definitions = {
         AttackRange = 5.8, AttackCooldown = 2.7, WalkSpeed = 6, ChaseSpeed = 9,
         RespawnDelay = 60, ExperienceReward = 600, GoldReward = 250,
     },
-    DireForestWolf = {
+    ThornboundWhelp = {
+   DisplayName = "Thornbound Whelp", ModelId = "ForestWolf",
+   -- Phase-two adds for the Guardian fight: fast, fragile, meant to be cleared.
+   Level = 5, AggroType = "Aggressive", MaxHealth = 300, Damage = 15,
+   WanderRadius = 2, DetectionRadius = 44, ChaseLimit = 48,
+   AttackRange = 4.2, AttackCooldown = 1.5, WalkSpeed = 12, ChaseSpeed = 16,
+   RespawnDelay = 5, ExperienceReward = 12, GoldReward = 2,
+   },
+   DireForestWolf = {
         DisplayName = "Thornwatch Dire Wolf", ModelId = "ForestWolf",
         Level = 4, AggroType = "Aggressive", MaxHealth = 470, Damage = 30,
         WanderRadius = 6, DetectionRadius = 13, ChaseLimit = 40,
