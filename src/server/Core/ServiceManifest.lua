@@ -32,4 +32,7 @@ return {
     {name = "SwordCombatService",       folder = "Combat",      module = "SwordCombatService",
         deps = {"PlayerDataService", "EquipmentService", "MonsterService"},
         configure = {"PlayerDataService"}},
+    {name = "SoulShard",              folder = "Players",    module = "SoulShard",
+        deps = {"PlayerDataService"},
+        configure = {"PlayerDataService"}},
 }

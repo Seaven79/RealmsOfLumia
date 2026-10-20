@@ -63,6 +63,24 @@ function PlayerDataService:OnPlayerJoined(player)
 
     loading[userId] = nil
 
+    if not profile and game:GetService("RunService"):IsStudio() then
+        profile = {
+            Character = { Name = player.Name, Level = 1, Experience = 0, Gold = 0, Class = "Warrior" },
+            Inventory = { Items = {}, Equipment = {} },
+            Quests = {},
+            Version = 1,
+        }
+        warn("[Lumia - Player Data Service] STUDIO MOCK profile created for " .. player.Name)
+    end
+    if not profile and game:GetService("RunService"):IsStudio() then
+        profile = {
+            Character = { Name = player.Name, Level = 1, Experience = 0, Gold = 0, Class = "Warrior" },
+            Inventory = { Items = {}, Equipment = {} },
+            Quests = {},
+            Version = 1,
+        }
+        warn("[Lumia - Player Data Service] STUDIO MOCK profile created for " .. player.Name)
+    end
     if not profile then
         warn(
             "[Lumia - Player Data Service] Profile loading denied for "
@@ -196,6 +214,20 @@ function PlayerDataService:GetProfileByUserId(userId)
     end
 
     return profiles[userId]
+end
+
+function PlayerDataService:GetProfileUnchecked(player)
+    if not player then
+        return nil
+    end
+    return profiles[player.UserId]
+end
+
+function PlayerDataService:GetProfileUnchecked(player)
+    if not player then
+        return nil
+    end
+    return profiles[player.UserId]
 end
 
 function PlayerDataService:GetActiveCount()

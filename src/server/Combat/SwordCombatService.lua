@@ -479,6 +479,7 @@ function SwordCombatService:_onAttack(player)
 
     local tool, record, definition = isValidWeapon(player, character)
     if not tool then
+        SwordCombatService:_onFistAttack(player, humanoid, root)
         return
     end
 
@@ -572,6 +573,39 @@ function SwordCombatService:_onAttack(player)
                 .. tostring(finalDamage)
                 .. " damage"
         )
+    end)
+end
+
+function SwordCombatService:_onFistAttack(player, humanoid, root)
+    if not humanoid or not root then return end
+    local cooldown = 0.6
+    local hitDelay = 0.15
+    local range = 5
+    local stats = CombatStats.Get(player)
+    local damage = math.clamp(5 + (stats and stats.Attack or 0), 1, 160)
+    local now = os.clock()
+    if lastAttacks[player] and now - lastAttacks[player] < cooldown then return end
+    lastAttacks[player] = now
+    task.delay(hitDelay, function()
+        if player.Parent ~= Players then return end
+        if player.Character ~= character then return end
+        if humanoid.Health <= 0 then return end
+        local _, liveRoot = humanoidAndRoot(player.Character)
+        if not liveRoot then return end
+        local model, targetHumanoid = bestTarget(player.Character, nil, liveRoot, range)
+        if not model or not targetHumanoid then return end
+        model:SetAttribute("LumiaLastHitUserId", player.UserId)
+        model:SetAttribute("LumiaLastHitAt", os.clock())
+        if model:GetAttribute("MonsterId") == "ThornboundGuardian" and model:GetAttribute("LumiaBossEncounter") == true then
+            local hitKey = "LumiaBossHit_" .. player.UserId
+            model:SetAttribute(hitKey, (model:GetAttribute(hitKey) or 0) + 1)
+        end
+        local defense = tonumber(model:GetAttribute("LumiaDefenseFactor")) or 1
+        defense = math.clamp(defense, 0.25, 8)
+        local finalDamage = math.max(1, math.round(damage / defense))
+        targetHumanoid:TakeDamage(finalDamage)
+        hitRemote:FireClient(player, model, finalDamage)
+        print("[Lumia - Sword Combat Service] " .. player.Name .. " punched " .. model.Name .. " for " .. tostring(finalDamage) .. " damage")
     end)
 end
 
