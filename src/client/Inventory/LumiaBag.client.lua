@@ -165,7 +165,8 @@ local footer = label(window, "Footer", "0 / 8 slots", 13, HEIGHT - 29,
     WIDTH - 122, 20, 11, Color3.fromRGB(167, 153, 126))
 local wallet=Coins.Wallet(window,Currency,0,true)
 wallet.Position=UDim2.fromOffset(WIDTH-164,HEIGHT-28)
-wallet:SetAttribute("CurrencyDenominations","Sun/Moon/Cinder")
+-- Denominations are published by Coins.Wallet itself from Currency.Tiers, so
+-- there is no second copy of the coin names to fall out of date here.
 -- Drag an item outside all visible UI windows to request destruction.
 -- No trash button: shared DragDrop emits DeleteRequested on a world-view drop.
 local tooltip = ItemTooltip.new(gui)
