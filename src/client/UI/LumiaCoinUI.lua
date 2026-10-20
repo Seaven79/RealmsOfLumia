@@ -27,13 +27,8 @@ function Coins.Create(parent,tier,px)
         Font=Enum.Font.GothamBold,TextScaled=true,TextColor3=spec.edge,TextStrokeTransparency=0.8})
     return disk
 end
--- Hover help: hovering a coin explains what it is worth. Kept additive so the
--- wallet structure, holder names and SetWallet lookups are untouched.
-local function groupThousands(n)
-    local text=tostring(math.floor(tonumber(n) or 0))
-    return text:reverse():gsub("(%d%d%d)","%1,"):reverse():gsub("^,","")
-end
-
+-- Hover help: hovering a coin names it. Kept additive so the wallet structure,
+-- holder names and SetWallet lookups are untouched.
 local function infoCard(screenGui)
     local existing=screenGui:FindFirstChild("LumiaCoinInfo")
     if existing then return existing end
@@ -42,16 +37,10 @@ local function infoCard(screenGui)
         BorderSizePixel=0,Text="",Font=Enum.Font.GothamBold,TextSize=12,
         TextColor3=Color3.fromRGB(235,242,250),TextWrapped=true,
         TextXAlignment=Enum.TextXAlignment.Center,TextYAlignment=Enum.TextYAlignment.Center,
-        Size=UDim2.fromOffset(210,26),ZIndex=200})
+        Size=UDim2.fromOffset(120,26),ZIndex=200})
     new("UICorner",card,{CornerRadius=UDim.new(0,6)})
     new("UIStroke",card,{Color=Color3.fromRGB(120,90,50),Thickness=1})
     return card
-end
-
-local function describeTier(currencyModule,tier)
-    local base=currencyModule.Tiers[#currencyModule.Tiers]
-    if tier.Per<=1 then return tier.Name.."  ·  base unit" end
-    return string.format("%s  ·  %s %s each",tier.Name,groupThousands(tier.Per),base.Name)
 end
 
 function Coins.Wallet(parent,currencyModule,balance,isCompact)
@@ -86,11 +75,11 @@ function Coins.Wallet(parent,currencyModule,balance,isCompact)
             local screenGui=outer:FindFirstAncestorWhichIsA("ScreenGui")
             if not screenGui or not tier then return end
             local card=infoCard(screenGui)
-            card.Text=describeTier(currencyModule,tier)
+            card.Text=tier.Name
             local pos=holder.AbsolutePosition
             local size=holder.AbsoluteSize
             card.Position=UDim2.fromOffset(
-                math.floor(pos.X+size.X/2-105),
+                math.floor(pos.X+size.X/2-60),
                 math.max(0,math.floor(pos.Y-30)))
             card.Visible=true
         end)
