@@ -66,6 +66,26 @@ GlobalTuning.Dials = {
         Default = 1.0,
         Unit = "x",
     },
+    {
+        Id = "PlayerDamage",
+        Label = "Player damage",
+        Hint = "Scales ALL damage you deal: weapons and fists. Lower it if gear kills too fast.",
+        Min = 0.4,
+        Max = 3.0,
+        Step = 0.05,
+        Default = 1.0,
+        Unit = "x",
+    },
+    {
+        Id = "PlayerArmor",
+        Label = "Player armor",
+        Hint = "Scales your defense, which governs damage taken. Raise it to survive longer.",
+        Min = 0.4,
+        Max = 3.0,
+        Step = 0.05,
+        Default = 1.0,
+        Unit = "x",
+    },
 }
 
 GlobalTuning.ById = {}
@@ -79,10 +99,11 @@ GlobalTuning.Presets = {
     {
         Id = "Casual",
         Label = "Casual",
-        Hint = "Softer enemies, faster levels, slightly richer rewards.",
+        Hint = "Softer enemies, sturdier player, faster levels, richer rewards.",
         Values = {
             Difficulty = 0.7, MobRewards = 1.15, QuestRewards = 1.15,
             LevelPace = 0.85, BossScale = 0.8,
+            PlayerDamage = 1.15, PlayerArmor = 1.3,
         },
     },
     {
@@ -92,6 +113,7 @@ GlobalTuning.Presets = {
         Values = {
             Difficulty = 1.0, MobRewards = 1.0, QuestRewards = 1.0,
             LevelPace = 1.0, BossScale = 1.0,
+            PlayerDamage = 1.0, PlayerArmor = 1.0,
         },
     },
     {
@@ -101,24 +123,27 @@ GlobalTuning.Presets = {
         Values = {
             Difficulty = 1.0, MobRewards = 1.6, QuestRewards = 0.85,
             LevelPace = 1.0, BossScale = 1.0,
+            PlayerDamage = 1.0, PlayerArmor = 1.0,
         },
     },
     {
         Id = "Hard",
         Label = "Hard",
-        Hint = "Tougher mobs, more XP needed, tougher boss.",
+        Hint = "Tougher mobs, frailer player, more XP needed, tougher boss.",
         Values = {
             Difficulty = 1.35, MobRewards = 0.9, QuestRewards = 1.0,
             LevelPace = 1.1, BossScale = 1.25,
+            PlayerDamage = 0.9, PlayerArmor = 0.85,
         },
     },
     {
         Id = "Hell",
         Label = "Hell",
-        Hint = "Brutal trash, dangerous boss, thin rewards. Stress test.",
+        Hint = "Brutal trash, thin rewards, brittle player. Stress test.",
         Values = {
             Difficulty = 2.0, MobRewards = 0.7, QuestRewards = 0.9,
             LevelPace = 1.25, BossScale = 1.6,
+            PlayerDamage = 0.8, PlayerArmor = 0.7,
         },
     },
 }

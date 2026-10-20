@@ -878,6 +878,8 @@ local function renderGlobal(section)
             string.format("DMG %s → %s", tostring(row.BaseDamage), tostring(row.Damage)),
             string.format("XP %s → %s", tostring(row.BaseXP or 0), tostring(row.XP or 0)),
             string.format("Gold %s → %s", tostring(row.BaseGold or 0), tostring(row.Gold or 0)),
+            string.format("≈%s hits (%s each)", tostring(row.HitsToKill or 0),
+                tostring(row.HitDamage or 0)),
         }
         Kit.Create("TextLabel", {
             Text = table.concat(parts, "     "),

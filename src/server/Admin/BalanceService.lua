@@ -9,6 +9,7 @@ local ProgressionConfig = require(Shared:WaitForChild("Progression"):WaitForChil
 local MonsterConfig = require(Shared:WaitForChild("Monsters"):WaitForChild("MonsterConfig"))
 local QuestConfig = require(Shared:WaitForChild("Quests"):WaitForChild("QuestConfig"))
 local GlobalTuning = require(Shared:WaitForChild("Admin"):WaitForChild("GlobalTuning"))
+local GearCatalog = require(Shared:WaitForChild("Commerce"):WaitForChild("GearCatalog"))
 local Settings = require(script.Parent:WaitForChild("BalanceSettings"))
 local CurveLab = require(script.Parent:WaitForChild("CurveLabService"))
 
@@ -279,18 +280,32 @@ function BalanceService:PreviewTuning()
     local sample = { "ForestWolf", "StoneboundWolf", "DireForestWolf", "ThornboundGuardian" }
     local difficulty = self:GetGlobal("Difficulty")
     local bossScale = self:GetGlobal("BossScale")
+    local power = self:GetGlobal("PlayerDamage")
 
     for _, monsterId in ipairs(sample) do
         local definition = MonsterConfig.Definitions[monsterId]
         if definition then
             local isBoss = definition.IsBoss == true
             local scale = isBoss and bossScale or difficulty
+            local health = math.max(1, math.floor(definition.MaxHealth * scale + 0.5))
+
+            -- Reference loadout: that tier's shop sword plus the level's innate
+            -- attack. Mirrors CombatStats so the hit count is not a guess.
+            local level = math.clamp(tonumber(definition.Level) or 1, 1, 5)
+            local weaponId = string.format("Lumia%dSword", level)
+            local weapon = GearCatalog.Items[weaponId]
+            local attackStat = math.floor(5 * 0.4) + math.floor((level - 1) * 1.8)
+            local perHit = weapon
+                and math.max(1, math.floor((weapon.Damage + attackStat) * power + 0.5)) or 0
+            local defenseFactor = math.clamp(CurveLab:GetDefenseFactor(level), 0.25, 8)
+            local effectiveHit = math.max(1, math.round(perHit / defenseFactor))
+
             rows[#rows + 1] = {
                 Id = monsterId,
                 Name = definition.DisplayName or monsterId,
                 IsBoss = isBoss,
                 BaseHealth = definition.MaxHealth,
-                Health = math.max(1, math.floor(definition.MaxHealth * scale + 0.5)),
+                Health = health,
                 BaseDamage = definition.Damage,
                 Damage = math.max(0, math.floor(definition.Damage * scale + 0.5)),
                 BaseXP = self:GetMonsterXP(monsterId),
@@ -298,6 +313,8 @@ function BalanceService:PreviewTuning()
                 BaseGold = self:GetMonsterGold(monsterId),
                 Gold = self:GetMonsterRewardGold(monsterId),
                 Scale = scale,
+                HitDamage = effectiveHit,
+                HitsToKill = perHit > 0 and math.ceil(health / effectiveHit) or 0,
             }
         end
     end

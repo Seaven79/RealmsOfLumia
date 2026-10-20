@@ -3,7 +3,18 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Items = require(ReplicatedStorage:WaitForChild("Lumia"):WaitForChild("Shared")
     :WaitForChild("Items"):WaitForChild("ItemDefinitions"))
 local Data = require(script.Parent.Parent:WaitForChild("Players"):WaitForChild("PlayerDataService"))
+local BalanceService = require(script.Parent.Parent:WaitForChild("Admin"):WaitForChild("BalanceService"))
 local CombatStats = {}
+
+-- Cached armor dial. IncomingDamage runs on every monster hit, so it must not
+-- reach into the balance service (and its DataStore load) per hit. Refreshed on
+-- startup and whenever the owner changes a dial.
+local armorScale = 1
+local function refreshArmorScale()
+    armorScale = BalanceService:GetGlobal("PlayerArmor")
+end
+BalanceService.Changed.Event:Connect(refreshArmorScale)
+task.spawn(refreshArmorScale)
 
 function CombatStats.Get(player)
     local profile = Data:GetProfile(player)
@@ -44,7 +55,10 @@ function CombatStats.IncomingDamage(player, rawDamage)
     local amount = math.max(0, tonumber(rawDamage) or 0)
     if not stats or amount <= 0 then return amount end
     -- Armor has meaningful diminishing returns; no invulnerability at any tier.
-    local mitigation = (stats.Defense / (stats.Defense + 92))
+    -- The global armor dial scales effective defense, so it rides the same curve
+    -- rather than adding a flat bonus that could push past 100% mitigation.
+    local defense = stats.Defense * armorScale
+    local mitigation = (defense / (defense + 92))
     -- Completing a six-piece loadout makes the end of each tier notably easier.
     if stats.GearPieces >= 6 and stats.MeanTier >= math.max(1, stats.Level - 1) then
         mitigation = math.min(0.72, mitigation + 0.12)

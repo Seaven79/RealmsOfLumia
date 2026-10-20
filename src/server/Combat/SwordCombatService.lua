@@ -17,6 +17,7 @@ local ItemDefinitions = require(shared:WaitForChild("Items"):WaitForChild("ItemD
 local services = script.Parent.Parent
 local ItemFactory = require(services:WaitForChild("Items"):WaitForChild("ItemFactory"))
 local CombatStats = require(script.Parent:WaitForChild("CombatStats"))
+local BalanceService = require(services:WaitForChild("Admin"):WaitForChild("BalanceService"))
 
 local SwordCombatService = {}
 local dataService = nil
@@ -502,6 +503,12 @@ function SwordCombatService:_onAttack(player)
     range = math.clamp(range, 2.5, 10)
     local stats = CombatStats.Get(player)
     damage = math.clamp(math.floor(damage + (stats and stats.Attack or 0)), 1, 160)
+    -- Global player-damage dial: one knob for "how fast do weapons kill".
+    -- Applied after gear stats so it scales the whole loadout, not one tier.
+    local power = BalanceService:GetGlobal("PlayerDamage")
+    if power ~= 1 then
+        damage = math.max(1, math.floor(damage * power + 0.5))
+    end
 
     local now = os.clock()
     if lastAttacks[player] and now - lastAttacks[player] < cooldown then
@@ -583,6 +590,10 @@ function SwordCombatService:_onFistAttack(player, humanoid, root)
     local range = 5
     local stats = CombatStats.Get(player)
     local damage = math.clamp(5 + (stats and stats.Attack or 0), 1, 160)
+    local power = BalanceService:GetGlobal("PlayerDamage")
+    if power ~= 1 then
+        damage = math.max(1, math.floor(damage * power + 0.5))
+    end
     local now = os.clock()
     if lastAttacks[player] and now - lastAttacks[player] < cooldown then return end
     lastAttacks[player] = now

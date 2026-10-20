@@ -40,9 +40,38 @@ break both properties and save files become unrecoverable. Don't.
 |---|---|---|
 | `Difficulty` | `MonsterService:SpawnMonster` | trash HP + damage |
 | `BossScale` | `MonsterService:SpawnMonster` | boss HP + damage (`IsBoss == true`) |
+| `PlayerDamage` | `SwordCombatService` (`_onAttack`, `_onFistAttack`) | all outgoing player damage: weapons and fists |
+| `PlayerArmor` | `CombatStats.IncomingDamage` (cached) | effective defense, i.e. damage taken |
 | `MobRewards` | `MonsterService` (spawn snapshot), `ProgressionBridge` (legacy fallback) | kill XP + gold |
 | `QuestRewards` | `QuestService:TurnIn` via `GetEffectiveQuestReward*` | quest XP + gold |
 | `LevelPace` | `BalanceService:GetRequiredXP` | XP required per level |
+
+## The combat equation
+
+```
+player hit  = floor((weapon.Damage + attackStat) * PlayerDamage) clamped >= 1
+mob health  = config.MaxHealth * (boss and BossScale or Difficulty)
+hits to kill = ceil(mob health / (player hit / mob defense factor))
+
+damage taken = ceil(mob damage * (1 - mitigation))
+mitigation   = defense*PlayerArmor / (defense*PlayerArmor + 92) + set bonus (max 72%)
+```
+
+`PlayerArmor` scales **effective defense**, so it rides the existing diminishing
+returns curve and can never reach 100% mitigation. Adding a flat bonus instead
+would make armour dials unsafe at high values.
+
+`PlayerDamage` is applied after gear and level stats, so one dial covers the
+whole loadout rather than one tier — that is what stops a new sword from
+trivialising content.
+
+`CombatStats` caches the armor dial and refreshes on `BalanceService.Changed`,
+because `IncomingDamage` runs on every monster hit and must not reach into the
+balance service (or its DataStore load) per hit.
+
+The panel's preview shows `≈N hits (X each)` per monster, computed with the same
+formula from that tier's shop sword — so "does this kill too fast" is answerable
+before playing.
 
 Monster stats and rewards are **snapshotted at spawn** into attributes
 (`LumiaSpawnXP`, `LumiaSpawnGold`, `MaxHealth`). A living monster never changes
