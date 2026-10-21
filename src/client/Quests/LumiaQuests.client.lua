@@ -382,6 +382,17 @@ local function refresh()
     end
 end
 changed.OnClientEvent:Connect(render)
+-- Safety net: markers are cheap to refresh, so re-apply their state once a second.
+-- This makes a missed notifier or a late profile load self-correct instead of
+-- leaving a marker blank until the next quest event.
+task.spawn(function()
+    while true do
+        task.wait(1)
+        if snapshot and markersByGiver and next(markersByGiver) ~= nil then
+            syncMarkers()
+        end
+    end
+end)
 -- Fetch the snapshot as soon as the session allows it. Markers are attached when the
 -- NPC models stream in, but they stay blank until a snapshot exists, and previously
 -- that only happened when the journal was opened or the server pushed a change - so
@@ -567,7 +578,7 @@ local function attachMarkerForGiver(npc)
     local gui = ui("BillboardGui", {
         Name="LumiaPersonalQuestSymbol", Adornee=root, AlwaysOnTop=false, LightInfluence=0,
         Size=UDim2.fromOffset(70,85), StudsOffsetWorldSpace=Vector3.new(0,4.55,0),
-        MaxDistance=80, Enabled=false,
+        MaxDistance=120, Enabled=true,
     }, playerGui)
     local canvas = ui("Frame",{Name="MarkerCanvas",Size=UDim2.fromScale(1,1),BackgroundTransparency=1},gui)
     local scale = ui("UIScale",{Scale=1},canvas)
@@ -587,8 +598,8 @@ local function attachMarkerForGiver(npc)
     -- Show a dimmed glyph straight away so a giver reads as a quest giver while the
     -- player's profile is still loading. syncMarkers() replaces the dim state with
     -- the real glyph and colour as soon as the snapshot arrives.
-    icon.TextTransparency = 0.55
-    shadow.TextTransparency = 0.55
+    icon.TextTransparency = 0
+    shadow.TextTransparency = 0
     if workspace:GetAttribute("LumiaQuestDebug") == true then
         print(string.format("[Quest Debug] marker attached: %s at t=%.2f", name, os.clock()))
     end
