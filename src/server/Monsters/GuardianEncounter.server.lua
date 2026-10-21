@@ -232,7 +232,13 @@ end
 -- Spits a bolt that flies to a random patch of ground NEAR the Guardian and bursts
 -- there. It is visible in flight, so it is dodgeable: watch where it is heading and
 -- step out of the landing spot rather than reacting to the hit.
-local FIREBALL_TRAVEL=0.65
+-- Fireball: a red marker is painted on the landing spot the instant he spits, and the
+-- bolt itself flies there over ~1.1s on an arc. Both halves matter - the marker tells
+-- you where to move, the flight tells you how long you have.
+local FIREBALL_FLIGHT=1.15
+local FIREBALL_ARC=4.5
+local FIREBALL_STEP=0.06
+
 local function spitFireball(boss,phase)
     if not active or not fight then return end
     local pivot=boss:GetPivot()
@@ -243,8 +249,26 @@ local function spitFireball(boss,phase)
     local distance=math.random(8,18)
     local landX=origin.X+math.cos(angle)*distance
     local landZ=origin.Z+math.sin(angle)*distance
-    local landY=groundBelow(landX,origin.Y,landZ,boss)
-    local target=Vector3.new(landX,landY+1.1,landZ)
+    local groundY=groundBelow(landX,origin.Y,landZ,boss)
+    local landing=Vector3.new(landX,groundY+0.06,landZ)
+
+    -- Red ring on the floor: shows the impact point from the first frame.
+    local marker=Instance.new("Part")
+    marker.Name="LumiaBossFireballMarker"
+    marker.Shape=Enum.PartType.Cylinder
+    marker.Anchored=true
+    marker.CanCollide=false
+    marker.CanQuery=false
+    marker.CanTouch=false
+    marker.Material=Enum.Material.Neon
+    marker.Color=Color3.fromRGB(214,58,48)
+    marker.Transparency=0.45
+    marker.Size=Vector3.new(RING_THICKNESS,phase.fireballRadius*2,phase.fireballRadius*2)
+    marker.CFrame=CFrame.new(landing)*CFrame.Angles(0,0,math.rad(90))
+    marker.Parent=Workspace
+    if fight then fight.telegraphs[#fight.telegraphs+1]=marker end
+    TweenService:Create(marker,TweenInfo.new(FIREBALL_FLIGHT),
+        {Transparency=0.2,Size=Vector3.new(RING_THICKNESS,phase.fireballRadius*2.3,phase.fireballRadius*2.3)}):Play()
 
     local ball=Instance.new("Part")
     ball.Name="LumiaBossFireball"
@@ -260,23 +284,35 @@ local function spitFireball(boss,phase)
     ball.Parent=Workspace
     if fight then fight.telegraphs[#fight.telegraphs+1]=ball end
 
-    local flying=TweenService:Create(ball,
-        TweenInfo.new(FIREBALL_TRAVEL,Enum.EasingStyle.Quad,Enum.EasingDirection.In),
-        {CFrame=CFrame.new(target)})
-    flying.Completed:Connect(function()
-        if not ball.Parent then return end
+    task.spawn(function()
+        local steps=math.max(8,math.floor(FIREBALL_FLIGHT/FIREBALL_STEP))
+        for step=1,steps do
+            if not ball.Parent then break end
+            local t=step/steps
+            local position=Vector3.new(
+                origin.X+(landing.X-origin.X)*t,
+                origin.Y+(landing.Y-origin.Y)*t+math.sin(t*math.pi)*FIREBALL_ARC,
+                origin.Z+(landing.Z-origin.Z)*t)
+            ball.CFrame=CFrame.new(position)
+            task.wait(FIREBALL_FLIGHT/steps)
+        end
+        if not ball.Parent then
+            if marker.Parent then marker:Destroy() end
+            return
+        end
+
         local damageScale=tonumber(boss:GetAttribute("LumiaDamageScale")) or 1
         for _,player in ipairs(nearbyPlayers()) do
             local playerRoot,humanoid=rootOf(player)
             if playerRoot and humanoid then
-                local flat=Vector3.new(playerRoot.Position.X,target.Y,playerRoot.Position.Z)
-                if (flat-target).Magnitude<=phase.fireballRadius then
+                local flat=Vector3.new(playerRoot.Position.X,landing.Y,playerRoot.Position.Z)
+                if (flat-landing).Magnitude<=phase.fireballRadius then
                     humanoid:TakeDamage(CombatStats.IncomingDamage(
                         player,phase.fireballDamage*damageScale))
                 end
             end
         end
-        -- burst flash, then clear
+
         local burst=Instance.new("Part")
         burst.Name="LumiaBossFireballBurst"
         burst.Shape=Enum.PartType.Ball
@@ -288,12 +324,13 @@ local function spitFireball(boss,phase)
         burst.Material=Enum.Material.Neon
         burst.Color=Color3.fromRGB(255,176,86)
         burst.Transparency=0.35
-        burst.CFrame=CFrame.new(target)
+        burst.CFrame=CFrame.new(landing+Vector3.new(0,1,0))
         burst.Parent=Workspace
         if fight then fight.telegraphs[#fight.telegraphs+1]=burst end
         TweenService:Create(burst,TweenInfo.new(0.35),{Transparency=1}):Play()
         task.delay(0.4,function()
             if ball.Parent then ball:Destroy() end
+            if marker.Parent then marker:Destroy() end
             if burst.Parent then burst:Destroy() end
         end)
     end)
