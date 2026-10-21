@@ -77,6 +77,16 @@ GlobalTuning.Dials = {
         Unit = "x",
     },
     {
+        Id = "FistDamage",
+        Label = "Fist damage",
+        Hint = "Unarmed damage only, independent of every template. Leave at 1.00 to keep punches on the gear curve's defaults.",
+        Min = 0.4,
+        Max = 3.0,
+        Step = 0.05,
+        Default = 1.0,
+        Unit = "x",
+    },
+    {
         Id = "PlayerArmor",
         Label = "Player armor",
         Hint = "Scales your defense, which governs damage taken. Raise it to survive longer.",

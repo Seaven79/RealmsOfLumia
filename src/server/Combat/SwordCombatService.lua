@@ -18,7 +18,7 @@ local services = script.Parent.Parent
 local ItemFactory = require(services:WaitForChild("Items"):WaitForChild("ItemFactory"))
 local CombatStats = require(script.Parent:WaitForChild("CombatStats"))
 local BalanceService = require(services:WaitForChild("Admin"):WaitForChild("BalanceService"))
-local GearCurve = require(shared:WaitForChild("Commerce"):WaitForChild("GearCurve"))
+-- Fists are driven by the FistDamage dial, so no GearCurve dependency here.
 
 local SwordCombatService = {}
 local dataService = nil
@@ -591,9 +591,9 @@ function SwordCombatService:_onFistAttack(player, humanoid, root)
     local range = 5
     local stats = CombatStats.Get(player)
     local damage = math.clamp(5 + (stats and stats.Attack or 0), 1, 160)
-    -- Unarmed damage follows the active template too, so a template change moves
-    -- fists and weapons together instead of only gear.
-    local fistScale = GearCurve.FistScale()
+    -- Unarmed damage has its own dial, independent of the gear templates, so fists
+    -- can be tuned on their own without touching weapon balance.
+    local fistScale = BalanceService:GetGlobal("FistDamage")
     if fistScale ~= 1 then
         damage = math.max(1, math.floor(damage * fistScale + 0.5))
     end
