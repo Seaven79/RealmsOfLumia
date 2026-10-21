@@ -16,6 +16,7 @@
 -- leaves or dies the Guardian dissolves and re-forms on the next attempt.
 local Players=game:GetService("Players")
 local Workspace=game:GetService("Workspace")
+local TweenService=game:GetService("TweenService")
 local services=script.Parent.Parent
 local Quests=require(services:WaitForChild("Quests"):WaitForChild("QuestService"))
 local Achievements=require(services:WaitForChild("Progression"):WaitForChild("AchievementService"))
@@ -44,16 +45,19 @@ local PHASES={
         id=1, untilFraction=0.65,
         slamInterval=6.5, telegraph=1.45, radius=12, slamDamage=22,
         addInterval=nil, maxAdds=0,
+        fireballInterval=9.0, fireballDamage=12, fireballRadius=5.5,
     },
     {
         id=2, untilFraction=0.30,
         slamInterval=5.0, telegraph=1.15, radius=13, slamDamage=26,
         addInterval=18, maxAdds=4,
+        fireballInterval=7.0, fireballDamage=16, fireballRadius=6,
     },
     {
         id=3, untilFraction=0,
         slamInterval=3.8, telegraph=0.95, radius=16, slamDamage=32,
         addInterval=nil, maxAdds=0,
+        fireballInterval=5.0, fireballDamage=20, fireballRadius=6.5,
     },
 }
 
@@ -225,6 +229,75 @@ local function startSlam(boss,phase)
     end
 end
 
+-- Spits a bolt that flies to a random patch of ground NEAR the Guardian and bursts
+-- there. It is visible in flight, so it is dodgeable: watch where it is heading and
+-- step out of the landing spot rather than reacting to the hit.
+local FIREBALL_TRAVEL=0.65
+local function spitFireball(boss,phase)
+    if not active or not fight then return end
+    local pivot=boss:GetPivot()
+    local origin=Vector3.new(pivot.Position.X,pivot.Position.Y+3.2,pivot.Position.Z)
+
+    -- Somewhere close to him, not aimed at a player: the threat is area denial.
+    local angle=math.random()*math.pi*2
+    local distance=math.random(8,18)
+    local landX=origin.X+math.cos(angle)*distance
+    local landZ=origin.Z+math.sin(angle)*distance
+    local landY=groundBelow(landX,origin.Y,landZ,boss)
+    local target=Vector3.new(landX,landY+1.1,landZ)
+
+    local ball=Instance.new("Part")
+    ball.Name="LumiaBossFireball"
+    ball.Shape=Enum.PartType.Ball
+    ball.Size=Vector3.new(1.7,1.7,1.7)
+    ball.Anchored=true
+    ball.CanCollide=false
+    ball.CanQuery=false
+    ball.CanTouch=false
+    ball.Material=Enum.Material.Neon
+    ball.Color=Color3.fromRGB(255,138,54)
+    ball.CFrame=CFrame.new(origin)
+    ball.Parent=Workspace
+    if fight then fight.telegraphs[#fight.telegraphs+1]=ball end
+
+    local flying=TweenService:Create(ball,
+        TweenInfo.new(FIREBALL_TRAVEL,Enum.EasingStyle.Quad,Enum.EasingDirection.In),
+        {CFrame=CFrame.new(target)})
+    flying.Completed:Connect(function()
+        if not ball.Parent then return end
+        local damageScale=tonumber(boss:GetAttribute("LumiaDamageScale")) or 1
+        for _,player in ipairs(nearbyPlayers()) do
+            local playerRoot,humanoid=rootOf(player)
+            if playerRoot and humanoid then
+                local flat=Vector3.new(playerRoot.Position.X,target.Y,playerRoot.Position.Z)
+                if (flat-target).Magnitude<=phase.fireballRadius then
+                    humanoid:TakeDamage(CombatStats.IncomingDamage(
+                        player,phase.fireballDamage*damageScale))
+                end
+            end
+        end
+        -- burst flash, then clear
+        local burst=Instance.new("Part")
+        burst.Name="LumiaBossFireballBurst"
+        burst.Shape=Enum.PartType.Ball
+        burst.Size=Vector3.new(phase.fireballRadius*2,phase.fireballRadius*2,phase.fireballRadius*2)
+        burst.Anchored=true
+        burst.CanCollide=false
+        burst.CanQuery=false
+        burst.CanTouch=false
+        burst.Material=Enum.Material.Neon
+        burst.Color=Color3.fromRGB(255,176,86)
+        burst.Transparency=0.35
+        burst.CFrame=CFrame.new(target)
+        burst.Parent=Workspace
+        if fight then fight.telegraphs[#fight.telegraphs+1]=burst end
+        TweenService:Create(burst,TweenInfo.new(0.35),{Transparency=1}):Play()
+        task.delay(0.4,function()
+            if ball.Parent then ball:Destroy() end
+            if burst.Parent then burst:Destroy() end
+        end)
+    end)
+end
 local function spawnWhelps(boss)
     if not fight then return end
     local alive=0
@@ -254,7 +327,8 @@ end
 local function runFight(boss)
     local humanoid=boss:FindFirstChildOfClass("Humanoid")
     if not humanoid then return end
-    local state={ nextSlam=os.clock()+2.5, nextAdds=os.clock()+8, phaseId=0 }
+    local state={ nextSlam=os.clock()+2.5, nextAdds=os.clock()+8,
+        nextFireball=os.clock()+4.5, phaseId=0 }
     while active==boss and boss.Parent and humanoid.Health>0 do
         local fraction=humanoid.Health/math.max(1,humanoid.MaxHealth)
         local phase=phaseFor(fraction)
@@ -279,6 +353,10 @@ local function runFight(boss)
         if os.clock()>=state.nextSlam then
             state.nextSlam=os.clock()+phase.slamInterval
             startSlam(boss,phase)
+        end
+        if os.clock()>=state.nextFireball then
+            state.nextFireball=os.clock()+phase.fireballInterval
+            spitFireball(boss,phase)
         end
         task.wait(0.2)
     end
