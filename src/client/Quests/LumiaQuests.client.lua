@@ -311,8 +311,15 @@ local function syncMarkers()
                     gui.Enabled = false
                 end
                 if entry.Icon then entry.Icon.Text = glyph end
-                if entry.Icon then entry.Icon.TextColor3 = color end
-                if entry.Shadow then entry.Shadow.Text = glyph end
+                if entry.Icon then
+                    entry.Icon.TextColor3 = color
+                    -- Clear the pending dim applied when the marker was attached.
+                    entry.Icon.TextTransparency = 0
+                end
+                if entry.Shadow then
+                    entry.Shadow.Text = glyph
+                    entry.Shadow.TextTransparency = 0
+                end
             end
         end
     end
@@ -381,7 +388,7 @@ task.spawn(function()
             syncMarkers()
             return
         end
-        task.wait(0.35)
+        task.wait(0.15)
     end
 end)
 local toastSerial=0
@@ -570,6 +577,12 @@ local function attachMarkerForGiver(npc)
         TextStrokeColor3=Color3.fromRGB(28,19,10),BackgroundTransparency=1,
     },canvas)
     markersByGiver[name] = { Gui=gui, Icon=icon, Shadow=shadow, Scale=scale, Head=root }
+    -- Show a dimmed glyph straight away so a giver reads as a quest giver while the
+    -- player's profile is still loading. syncMarkers() replaces the dim state with
+    -- the real glyph and colour as soon as the snapshot arrives.
+    icon.TextTransparency = 0.55
+    shadow.TextTransparency = 0.55
+    gui.Enabled = true
 end
 task.spawn(function()
     local world = workspace:WaitForChild("LumiaQuestWorld", 40)
