@@ -372,7 +372,14 @@ local function render(data)
 end
 local function refresh()
     local ok,data=pcall(function() return getJournal:InvokeServer() end)
-    if ok and type(data)=="table" then render(data) end
+    if ok and type(data)=="table" then
+        if workspace:GetAttribute("LumiaQuestDebug") == true then
+            local count=0
+            for _ in pairs(data.Givers or {}) do count=count+1 end
+            print(string.format("[Quest Debug] snapshot ready=%s givers=%d at t=%.2f", tostring(data.Ready),count,os.clock()))
+        end
+        render(data)
+    end
 end
 changed.OnClientEvent:Connect(render)
 -- Fetch the snapshot as soon as the session allows it. Markers are attached when the
@@ -582,6 +589,9 @@ local function attachMarkerForGiver(npc)
     -- the real glyph and colour as soon as the snapshot arrives.
     icon.TextTransparency = 0.55
     shadow.TextTransparency = 0.55
+    if workspace:GetAttribute("LumiaQuestDebug") == true then
+        print(string.format("[Quest Debug] marker attached: %s at t=%.2f", name, os.clock()))
+    end
     gui.Enabled = true
 end
 task.spawn(function()
