@@ -103,6 +103,10 @@ local function trackMonster(model)
         GaitPhase = 0,
         WalkBlend = 0,
         AttackSerial = model:GetAttribute("LumiaAttackSerial") or 0,
+        CastSerial = model:GetAttribute("LumiaCastSerial") or 0,
+        CastStarted = nil,
+        CastType = nil,
+        CastDuration = 1,
         AttackStarted = -math.huge,
         LastUpdate = 0,
         CurrentAngles = {},
@@ -169,6 +173,16 @@ local function animate(record, dt, now)
     local updateDt = math.min(now - record.LastUpdate, 0.15)
     record.LastUpdate = now
 
+    -- Skill casts are announced by the server with a type and a duration, so the
+    -- wind-up can be timed to the telegraph instead of guessed.
+    local castSerial = model:GetAttribute("LumiaCastSerial")
+    if type(castSerial) == "number" and castSerial ~= record.CastSerial then
+        record.CastSerial = castSerial
+        record.CastStarted = now
+        record.CastType = model:GetAttribute("LumiaCastType")
+        record.CastDuration = tonumber(model:GetAttribute("LumiaCastDuration")) or 1
+    end
+
     local serial = model:GetAttribute("LumiaAttackSerial")
     if type(serial) == "number" and serial ~= record.AttackSerial then
         record.AttackSerial = serial
@@ -182,7 +196,8 @@ local function animate(record, dt, now)
     record.WalkBlend += (desired - record.WalkBlend)
         * (1 - math.exp(-WALK_SMOOTHING * updateDt))
 
-    record.GaitPhase += updateDt * walk.Frequency * math.pi * 2
+    local gaitScale = tonumber(model:GetAttribute("LumiaGaitScale")) or 1
+    record.GaitPhase += updateDt * walk.Frequency * gaitScale * math.pi * 2
     local swing = math.sin(record.GaitPhase) * record.WalkBlend
     local counter = math.sin(record.GaitPhase + math.pi) * record.WalkBlend
     local step = math.abs(math.cos(record.GaitPhase)) * record.WalkBlend
@@ -220,6 +235,36 @@ local function animate(record, dt, now)
         pose.Neck = {head}
         pose.Muzzle = {-attack.MuzzlePitch * strike}
         pose.Tail = {-attack.TailPitch * strike}
+    end
+
+    -- Cast overrides the walk/attack pose while it plays: a long ease into the
+    -- wind-up, then a fast snap through the release.
+    local castPoses = record.Profile.Cast
+    if castPoses and record.CastStarted then
+        local duration = math.max(0.2, record.CastDuration or 1)
+        local elapsedCast = now - record.CastStarted
+        if elapsedCast >= 0 and elapsedCast < duration then
+            local cast = castPoses[record.CastType] or castPoses.Slam
+            local t = elapsedCast / duration
+            local weight
+            if t < 0.7 then
+                local rise = t / 0.7
+                weight = 1 - (1 - rise) * (1 - rise)
+            else
+                local fall = 1 - (t - 0.7) / 0.3
+                weight = math.max(0, fall * fall)
+            end
+            pose.Neck = {cast.NeckPitch * weight}
+            pose.Muzzle = {cast.MuzzlePitch * weight}
+            pose.FrontLeft = {cast.FrontLegPitch * weight}
+            pose.FrontRight = {cast.FrontLegPitch * weight}
+            pose.RearLeft = {cast.RearLegPitch * weight}
+            pose.RearRight = {cast.RearLegPitch * weight}
+            pose.Tail = {cast.TailPitch * weight}
+        elseif elapsedCast >= duration then
+            record.CastStarted = nil
+            record.CastType = nil
+        end
     end
 
     setPose(record, pose)

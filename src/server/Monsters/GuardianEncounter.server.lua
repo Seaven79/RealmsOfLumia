@@ -190,6 +190,15 @@ local function spawnRing(boss,phase,target)
     end)
 end
 
+-- Tells clients to play a wind-up. The type picks the pose and the duration matches
+-- the telegraph, so the body commits exactly as long as the ground marker is up.
+local function announceCast(boss,castType,duration)
+    if not boss or not boss.Parent then return end
+    boss:SetAttribute("LumiaCastType",castType)
+    boss:SetAttribute("LumiaCastDuration",duration)
+    boss:SetAttribute("LumiaCastSerial",(boss:GetAttribute("LumiaCastSerial") or 0)+1)
+end
+
 -- Turns the whole model to look at a player, flat on the ground plane. Called as
 -- the slam is cast so the wind-up reads as the Guardian choosing its target.
 local function faceTarget(boss,target)
@@ -210,6 +219,7 @@ local RING_STAGGER=0.28
 local function startSlam(boss,phase)
     local crowd=nearbyPlayers()
     if #crowd==0 then return end
+    announceCast(boss,"Slam",phase.telegraph)
     if phase.id>=2 then
         -- Face the first ring's target; later rings are the same cast, so the boss
         -- should not swivel between them mid-animation.
@@ -252,6 +262,7 @@ local function spitFireball(boss,phase)
     local groundY=groundBelow(landX,origin.Y,landZ,boss)
     local landing=Vector3.new(landX,groundY+0.06,landZ)
 
+    announceCast(boss,"Fireball",FIREBALL_FLIGHT)
     -- Red ring on the floor: shows the impact point from the first frame.
     local marker=Instance.new("Part")
     marker.Name="LumiaBossFireballMarker"
@@ -413,6 +424,8 @@ local function spawnBoss()
     -- Big enough to read as a raid boss from across the arena. ScaleTo keeps the
     -- rig's joint proportions; it is cosmetic, so health and damage are untouched.
     pcall(function() boss:ScaleTo(BOSS_SCALE) end)
+    -- A 2.4x rig at the default gait frequency looks like it is scurrying.
+    boss:SetAttribute("LumiaGaitScale",0.85)
 
     local humanoid=boss:FindFirstChildOfClass("Humanoid")
     if humanoid then

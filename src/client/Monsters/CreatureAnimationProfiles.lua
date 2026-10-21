@@ -28,6 +28,18 @@ local Profiles = {
             TailYaw = 0.12,
             MinSpeed = 0.5,
         },
+        -- Skill wind-ups. The client plays these while the server telegraphs, so the
+        -- body commits to the attack before the effect lands.
+        Cast = {
+            Slam = {
+                NeckPitch = -0.5, MuzzlePitch = -0.22,
+                FrontLegPitch = -0.32, RearLegPitch = 0.26, TailPitch = 0.34,
+            },
+            Fireball = {
+                NeckPitch = 0.34, MuzzlePitch = 0.46,
+                FrontLegPitch = 0.12, RearLegPitch = -0.16, TailPitch = -0.26,
+            },
+        },
         Attack = {
             Duration = 0.45,     -- seconds; purely visual
             FrontLegPitch = 0.55,
