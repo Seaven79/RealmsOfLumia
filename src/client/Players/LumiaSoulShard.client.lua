@@ -289,6 +289,20 @@ local function addBeacon(model)
     beacon.Transparency = 0.87
     beacon.CFrame = crystal.CFrame * CFrame.new(0, 110, 0)
     beacon.Parent = model
+    -- Shrink the pillar with distance, the same idea as the quest marker: a far drop
+    -- should read as a small signpost, not a full-height column dominating the view.
+    task.spawn(function()
+        while beacon.Parent do
+            local camera = workspace.CurrentCamera
+            if camera then
+                local distance = (camera.CFrame.Position - beacon.Position).Magnitude
+                local scale = math.clamp(1 - (distance - 40) / 160, 0.3, 1)
+                beacon.Size = Vector3.new(1.1 * scale, 220, 1.1 * scale)
+                beacon.Transparency = 0.87 + (1 - scale) * 0.1
+            end
+            task.wait(0.1)
+        end
+    end)
 end
 
 local function clearTracker()

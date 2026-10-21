@@ -299,10 +299,19 @@ local function syncMarkers()
                 local glyph = "!"
                 local color = GOLDLIGHT
                 if giver.State == "Current" then
-                    glyph = "?"
+                    -- "Current" is the quest this giver is focused on, which also covers
+                    -- the NEXT quest they have on offer. Show "?" only when it is really
+                    -- in the log, otherwise a giver never returns to a golden "!" after
+                    -- a turn-in.
                     local aq = snapshot.ActiveQuests and snapshot.ActiveQuests[giver.QuestId]
-                    color = (aq and aq.ReadyToTurnIn)
-                        and Color3.fromRGB(255,240,190) or GOLDLIGHT
+                    if aq then
+                        glyph = "?"
+                        color = aq.ReadyToTurnIn
+                            and Color3.fromRGB(255,240,190) or GOLDLIGHT
+                    else
+                        glyph = "!"
+                        color = GOLDLIGHT
+                    end
                 elseif giver.State == "Available" then
                     color = GOLDLIGHT
                 elseif giver.State == "Locked" then
