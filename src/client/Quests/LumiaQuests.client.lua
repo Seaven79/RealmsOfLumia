@@ -368,6 +368,22 @@ local function refresh()
     if ok and type(data)=="table" then render(data) end
 end
 changed.OnClientEvent:Connect(render)
+-- Fetch the snapshot as soon as the session allows it. Markers are attached when the
+-- NPC models stream in, but they stay blank until a snapshot exists, and previously
+-- that only happened when the journal was opened or the server pushed a change - so
+-- the "!" and "?" appeared late. The first attempts can land while the server is
+-- still loading the profile, hence the short retry loop.
+task.spawn(function()
+    for attempt = 1, 16 do
+        refresh()
+        if snapshot and type(snapshot.Givers) == "table"
+            and next(snapshot.Givers) ~= nil then
+            syncMarkers()
+            return
+        end
+        task.wait(0.35)
+    end
+end)
 local toastSerial=0
 messages.OnClientEvent:Connect(function(msg,success)
     toastSerial+=1
