@@ -293,13 +293,18 @@ local function syncMarkers()
                 gui.Enabled = false
             else
                 gui.Enabled = true
+                -- Classic marker language: a golden "!" means a quest is on offer,
+                -- a golden "?" means one is already in your log. Accepted quests get
+                -- the "?" immediately and it brightens once the objective is done.
                 local glyph = "!"
                 local color = GOLDLIGHT
                 if giver.State == "Current" then
+                    glyph = "?"
                     local aq = snapshot.ActiveQuests and snapshot.ActiveQuests[giver.QuestId]
-                    if aq and aq.ReadyToTurnIn then glyph = "?" end
+                    color = (aq and aq.ReadyToTurnIn)
+                        and Color3.fromRGB(255,240,190) or GOLDLIGHT
                 elseif giver.State == "Available" then
-                    color = SILVER
+                    color = GOLDLIGHT
                 elseif giver.State == "Locked" then
                     color = GRAY
                 else
