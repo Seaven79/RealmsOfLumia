@@ -28,6 +28,17 @@ GearCurve.Templates = {
     Hell = { 1.00, 1.00, 1.00, 1.00, 1.00 },
 }
 
+-- Fists are not gear, so they get their own weight per template instead of a tier
+-- weight. GrindHeavy deliberately leaves them behind: the point of that template is
+-- that climbing the gear ladder is what carries you.
+GearCurve.FistWeights = {
+    Casual = 1.00,
+    QuestLed = 1.00,
+    GrindHeavy = 0.90,
+    Hard = 1.00,
+    Hell = 1.00,
+}
+
 GearCurve.DefaultTemplate = "QuestLed"
 GearCurve.AttributeName = "LumiaActiveGearTemplate"
 
@@ -118,6 +129,14 @@ function GearCurve.PriceScale(definition)
     local weight = GearCurve.WeightFor(definition)
     if weight == 1 then return 1 end
     return weight
+end
+
+-- Multiplier applied to unarmed damage for the active template.
+function GearCurve.FistScale()
+    local template = GearCurve.GetTemplate()
+    local weight = GearCurve.FistWeights[template]
+        or GearCurve.FistWeights[GearCurve.DefaultTemplate]
+    return weight or 1
 end
 
 function GearCurve.ClearCache()
